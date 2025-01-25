@@ -8,7 +8,14 @@ import 'package:path_provider/path_provider.dart';
 import 'package:get/get.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 
+import 'package:desktop_window/desktop_window.dart';
+
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  //DesktopWindow.setMinWindowSize(Size(300, 300)); // Imposta la dimensione minima della finestra
+  //DesktopWindow.setMaxWindowSize(Size(800, 800)); // Imposta la dimensione massima della finestra
+  DesktopWindow.setWindowSize(Size(400, 500));
+  //DesktopWindow.setBorders(false);
   runApp(MyApp());
 }
 
