@@ -44,42 +44,6 @@ class PdfSplitterController extends GetxController {
     }
   }
 
-/*
-  Future<void> splitPdf() async {
-    if (csvFilePath.value == null || pdfFilePath.value == null) {
-      message.value = 'Seleziona i file CSV e PDF';
-      return;
-    }
-
-    // Carica il PDF originale
-    final pdfDocument = await _loadPdfDocument(pdfFilePath);
-
-    // Ottieni la directory in cui salvare i file PDF separati
-    final directory = await getApplicationDocumentsDirectory();
-
-    // Suddividi il PDF in singole pagine
-    for (int i = 0; i < pdfDocument.pages.count; i++) {
-      final outPdf = await _loadPdfDocument(pdfFilePath);
-      for (int x = 0; x < pdfDocument.pages.count; x++) {
-        if (x < i) {
-          outPdf.pages.removeAt(0);
-        } else if (x > i) {
-          outPdf.pages.removeAt(1);
-        } else {
-          print('OK pagina $x');
-        }
-      }
-      // Crea un nome di file per ciascun PDF
-      final filePath = '${directory.path}/page_${i + 1}.pdf';
-
-      // Salva ogni singola pagina come file PDF
-      final file = File(filePath);
-      await file.writeAsBytes(await outPdf.save());
-      outPdf.dispose();
-      print('File salvato: $filePath');
-    }
-  }
-*/
   Future<PdfDocument> _loadPdfDocument(String path) async {
     final file = File(path);
     if (!await file.exists()) {
@@ -148,31 +112,6 @@ class PdfSplitterController extends GetxController {
       if (!outputDir.existsSync()) {
         outputDir.createSync();
       }
-/*
-      // Suddividi il PDF in singole pagine
-      for (int i = 0; i < pageCount; i++) {
-        final outPdf = await _loadPdfDocument(pdfFilePath.value!);
-        for (int x = 0; x < pageCount; x++) {
-          if (x < i) {
-            outPdf.pages.removeAt(0);
-          } else if (x > i) {
-            outPdf.pages.removeAt(1);
-          } else {
-            print('OK pagina $x');
-          }
-        }
-        // Crea un nome di file per ciascun PDF
-        final outputFileName = '${fileNames[i]}.pdf';
-        final filePath = path.join(outputDir.path, outputFileName);
-        //final filePath = '${outputDir.path}/${fileNames[i]}.pdf';
-
-        // Salva ogni singola pagina come file PDF
-        final file = File(filePath);
-        await file.writeAsBytes(await outPdf.save());
-        outPdf.dispose();
-        print('File salvato: $filePath');
-      }
-*/
 
       // Suddividi il PDF in singole pagine
       for (int i = 0; i < fileNames.length; i++) {
