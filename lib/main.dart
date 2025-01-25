@@ -111,7 +111,9 @@ class PdfSplitterController extends GetxController {
       // Splitta il PDF in pagine singole
       //Directory outputDir = Directory('./output');
       Directory appDocumentsDir = await getApplicationDocumentsDirectory();
-      String newDirPath = path.join(appDocumentsDir.path, 'pdf_splitter');
+      String documentsPath =
+          appDocumentsDir.path.replaceAll('Library/Containers', 'Documents');
+      String newDirPath = path.join(documentsPath, 'pdf_splitter');
 
       // Crea la directory se non esiste
       Directory outputDir = Directory(newDirPath);
