@@ -4,6 +4,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:csv/csv.dart';
 import 'dart:io';
 import 'package:path/path.dart' as path;
+import 'package:path_provider/path_provider.dart';
 import 'package:get/get.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 
@@ -108,9 +109,17 @@ class PdfSplitterController extends GetxController {
       }
 
       // Splitta il PDF in pagine singole
-      Directory outputDir = Directory('./output');
-      if (!outputDir.existsSync()) {
-        outputDir.createSync();
+      //Directory outputDir = Directory('./output');
+      Directory appDocumentsDir = await getApplicationDocumentsDirectory();
+      String newDirPath = path.join(appDocumentsDir.path, 'pdf_splitter');
+
+      // Crea la directory se non esiste
+      Directory outputDir = Directory(newDirPath);
+      if (!await outputDir.exists()) {
+        await outputDir.create(recursive: true);
+        print('Directory creata: $newDirPath');
+      } else {
+        print('La directory esiste già.');
       }
 
       // Suddividi il PDF in singole pagine
@@ -122,7 +131,7 @@ class PdfSplitterController extends GetxController {
         // Crea un nome di file per ciascun PDF
         final outputFileName = '${fileNames[i]}.pdf';
         final filePath = path.join(outputDir.path, outputFileName);
-        //final filePath = '${outputDir.path}/${fileNames[i]}.pdf';
+        //final filePath = '${newDir.path}/${fileNames[i]}.pdf';
 
         // Salva ogni singola pagina come file PDF
         final file = File(filePath);
