@@ -28,5 +28,7 @@
 	<string>MainMenu</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
+	<key>NSDocumentsFolderUsageDescription</key>
+	<string>Pdf_Splitter necessita di accedere alla cartella Documenti</string>
 </dict>
 </plist>
