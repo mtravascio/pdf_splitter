@@ -7,6 +7,7 @@ import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 import 'package:get/get.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 import 'package:desktop_window/desktop_window.dart';
 
@@ -33,6 +34,20 @@ class PdfSplitterController extends GetxController {
   var pdfFilePath = Rx<String?>(null);
   var isProcessing = false.obs;
   var message = ''.obs;
+  var version = ''.obs;
+  var appName = ''.obs;
+
+  // Metodo per ottenere la versione dell'app
+  Future<void> getAppName() async {
+    PackageInfo packageInfo = await PackageInfo.fromPlatform();
+    appName.value = packageInfo.appName; // Imposta la versione
+  }
+
+  // Metodo per ottenere la versione dell'app
+  Future<void> getAppVersion() async {
+    PackageInfo packageInfo = await PackageInfo.fromPlatform();
+    version.value = packageInfo.version; // Imposta la versione
+  }
 
   // Seleziona il file CSV
   Future<void> pickCsvFile() async {
@@ -93,13 +108,14 @@ class PdfSplitterController extends GetxController {
               csvSettingsDetector: d, convertEmptyTo: EmptyValue.NULL)
           .convert(csv);
 
-      if (fields.isEmpty || fields[0].length < 2) {
-        message.value = 'CSV non valido';
+      if (fields.isEmpty || fields[0].length < 4) {
+        message.value = 'CSV non valido - #,nome,descr,dir';
         return;
       }
 
       fields.removeWhere((row) => row.contains(null));
       List<String> fileNames = fields.map((row) => row[1].toString()).toList();
+      List<String> dirNames = fields.map((row) => row[3].toString()).toList();
       List<int> pageNumbers =
           fields.map((row) => int.tryParse(row[0].toString()) ?? 0).toList();
       // Carica il PDF originale
@@ -120,19 +136,22 @@ class PdfSplitterController extends GetxController {
       Directory appDocumentsDir = await getApplicationDocumentsDirectory();
       String documentsPath =
           appDocumentsDir.path.replaceAll('Library/Containers', 'Documents');
-      String newDirPath = path.join(documentsPath, 'pdf_splitter');
 
-      // Crea la directory se non esiste
-      Directory outputDir = Directory(newDirPath);
-      if (!await outputDir.exists()) {
-        await outputDir.create(recursive: true);
-        print('Directory creata: $newDirPath');
-      } else {
-        print('La directory esiste già.');
-      }
-
-      // Suddividi il PDF in singole pagine
+      // Suddividi il PDF in singole pagine creando le directory di destinazione
       for (int i = 0; i < fileNames.length; i++) {
+        String newDirPath =
+            path.joinAll([documentsPath, 'pdf_splitter', dirNames[i]]);
+
+        // Crea la directory se non esiste
+        Directory outputDir = Directory(newDirPath);
+        if (!await outputDir.exists()) {
+          await outputDir.create(recursive: true);
+          print('Directory creata: $newDirPath');
+        } else {
+          print('La directory esiste già.');
+        }
+
+        //Carica il file pdf sempre completo
         PdfDocument inPdf = await _loadPdfDocument(pdfFilePath.value!);
         //Estrae la pagina i dal file pdf
         PdfDocument outPdf = extractPage(pageNumbers[i] - 1, inPdf);
@@ -162,8 +181,31 @@ class PdfSplitter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    //Recupera il nome e la versione dell'App
+    controller.getAppName();
+    controller.getAppVersion();
     return Scaffold(
-      appBar: AppBar(title: Text('PDF Splitter')),
+      appBar: AppBar(
+        title: Obx(() {
+          // Mostra il nome dell'app dinamicamente
+          return Text(controller.appName.value);
+        }),
+        backgroundColor: Colors.deepPurpleAccent,
+        actions: [
+          // Usa Obx per osservare e aggiornare automaticamente la versione
+          Obx(() {
+            return Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Text(
+                controller.version.isNotEmpty
+                    ? 'Version: ${controller.version.value}'
+                    : 'Loading...',
+                style: TextStyle(fontSize: 16),
+              ),
+            );
+          }),
+        ],
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
