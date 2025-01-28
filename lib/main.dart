@@ -108,14 +108,16 @@ class PdfSplitterController extends GetxController {
               csvSettingsDetector: d, convertEmptyTo: EmptyValue.NULL)
           .convert(csv);
 
-      if (fields.isEmpty || fields[0].length < 4) {
-        message.value = 'CSV non valido - #,nome,descr,dir';
+      if (fields.isEmpty || fields[0].length < 5) {
+        message.value = 'CSV non valido - #,nome,descr,dir,subdir';
         return;
       }
 
       fields.removeWhere((row) => row.contains(null));
       List<String> fileNames = fields.map((row) => row[1].toString()).toList();
       List<String> dirNames = fields.map((row) => row[3].toString()).toList();
+      List<String> subdirNames =
+          fields.map((row) => row[4].toString()).toList();
       List<int> pageNumbers =
           fields.map((row) => int.tryParse(row[0].toString()) ?? 0).toList();
       // Carica il PDF originale
@@ -139,8 +141,8 @@ class PdfSplitterController extends GetxController {
 
       // Suddividi il PDF in singole pagine creando le directory di destinazione
       for (int i = 0; i < fileNames.length; i++) {
-        String newDirPath =
-            path.joinAll([documentsPath, 'pdf_splitter', dirNames[i]]);
+        String newDirPath = path.joinAll(
+            [documentsPath, 'pdf_splitter', dirNames[i], subdirNames[i]]);
 
         // Crea la directory se non esiste
         Directory outputDir = Directory(newDirPath);
