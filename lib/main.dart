@@ -8,10 +8,14 @@ import 'package:path_provider/path_provider.dart';
 import 'package:get/get.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:pdf_splitter/logger_controller.dart';
 
 import 'package:desktop_window/desktop_window.dart';
 
 void main() {
+  // Inizializza il controller dei log
+  Get.put(LogController());
+
   WidgetsFlutterBinding.ensureInitialized();
   //DesktopWindow.setMinWindowSize(Size(300, 300)); // Imposta la dimensione minima della finestra
   //DesktopWindow.setMaxWindowSize(Size(800, 800)); // Imposta la dimensione massima della finestra
@@ -33,9 +37,18 @@ class PdfSplitterController extends GetxController {
   var csvFilePath = Rx<String?>(null);
   var pdfFilePath = Rx<String?>(null);
   var isProcessing = false.obs;
-  var message = ''.obs;
-  var version = ''.obs;
+  var _message = ''.obs;
   var appName = ''.obs;
+  var version = ''.obs;
+
+  // Getter per ottenere il valore del messaggio
+  String get message => _message.value;
+
+  // Setter per impostare il valore del messaggio
+  set message(String newMessage) {
+    _message.value = newMessage;
+    //app_print(newMessage);
+  }
 
   // Metodo per ottenere la versione dell'app
   Future<void> getAppName() async {
@@ -47,6 +60,17 @@ class PdfSplitterController extends GetxController {
   Future<void> getAppVersion() async {
     PackageInfo packageInfo = await PackageInfo.fromPlatform();
     version.value = packageInfo.version; // Imposta la versione
+  }
+
+  // Redirigi le chiamate a print e debugPrint ai metodi del LogController
+  appInfo(String msg) {
+    final logController = Get.find<LogController>();
+    logController.logInfo(msg); // Usa logInfo per i messaggi generali
+  }
+
+  appError(String msg) {
+    final logController = Get.find<LogController>();
+    logController.logError(msg); // Usa logDebug per i messaggi di errore
   }
 
   // Seleziona il file CSV
@@ -84,7 +108,8 @@ class PdfSplitterController extends GetxController {
       } else if (x > pageIndex) {
         pdf.pages.removeAt(1);
       } else {
-        print('OK pagina $x');
+        appInfo('Pagina $x OK!');
+        message = 'Pagina $x OK!';
       }
     }
     return pdf;
@@ -93,7 +118,7 @@ class PdfSplitterController extends GetxController {
   // Splitta il PDF
   Future<void> splitPdf() async {
     if (csvFilePath.value == null || pdfFilePath.value == null) {
-      message.value = 'Seleziona i file CSV e PDF';
+      message = 'Seleziona i file CSV e PDF';
       return;
     }
 
@@ -109,7 +134,8 @@ class PdfSplitterController extends GetxController {
           .convert(csv);
 
       if (fields.isEmpty || fields[0].length < 5) {
-        message.value = 'CSV non valido - #,nome,descr,dir,subdir';
+        message = 'CSV non valido - #,nome,descr,dir,subdir';
+        appError('CSV non valido - #,nome,descr,dir,subdir');
         return;
       }
 
@@ -126,16 +152,15 @@ class PdfSplitterController extends GetxController {
       // Controlla se il numero delle pagine corrisponde ai nomi
       int pageCount = pdfDocument.pages.count;
       if (fileNames.length > pageCount) {
-        message.value =
-            "Il numero di pagine ($pageCount) inferiore al numero di righe nel file CSV (" +
-                fileNames.length.toString() +
-                ")";
+        message = "#pagine PDF < #file CVS !";
+        appError(
+            "#pagine PDF ($pageCount) < #file CSV (${fileNames.length.toString()})");
         return;
       }
 
-      // Splitta il PDF in pagine singole
-      //Directory outputDir = Directory('./output');
+      // Preleva la directory Documents
       Directory appDocumentsDir = await getApplicationDocumentsDirectory();
+      // Evita la sandbox MacOS
       String documentsPath =
           appDocumentsDir.path.replaceAll('Library/Containers', 'Documents');
 
@@ -148,9 +173,11 @@ class PdfSplitterController extends GetxController {
         Directory outputDir = Directory(newDirPath);
         if (!await outputDir.exists()) {
           await outputDir.create(recursive: true);
-          print('Directory creata: $newDirPath');
+          message = 'Directory creata: $newDirPath';
+          appInfo('Directory creata: $newDirPath');
         } else {
-          print('La directory esiste già.');
+          message = 'La directory $newDirPath esiste già.';
+          appInfo('La directory $newDirPath esiste già.');
         }
 
         //Carica il file pdf sempre completo
@@ -161,17 +188,19 @@ class PdfSplitterController extends GetxController {
         // Crea un nome di file per ciascun PDF
         final outputFileName = '${fileNames[i]}.pdf';
         final filePath = path.join(outputDir.path, outputFileName);
-        //final filePath = '${newDir.path}/${fileNames[i]}.pdf';
 
         // Salva ogni singola pagina come file PDF
         final file = File(filePath);
         await file.writeAsBytes(await outPdf.save());
+        appInfo('File salvato: $filePath');
         outPdf.dispose();
-        print('File salvato: $filePath');
+        message = 'File salvato: $filePath';
       }
-      message.value = 'PDF splittato e rinominato correttamente!';
+      message = 'PDF splittati e rinominati';
+      appInfo('PDF splittati e rinominati');
     } catch (e) {
-      message.value = 'Errore durante il processamento: $e';
+      message = 'Errore durante il processamento: $e';
+      appError('Errore durante il processamento: $e');
     } finally {
       isProcessing.value = false;
     }
@@ -220,6 +249,10 @@ class PdfSplitter extends StatelessWidget {
                   child: Text('Seleziona file CSV'),
                 )),
             SizedBox(height: 20),
+            Obx(() => controller.csvFilePath.value != null
+                ? Text('CSV: ${controller.csvFilePath.value}')
+                : Container()),
+            SizedBox(height: 20),
             Obx(() => ElevatedButton(
                   onPressed: controller.isProcessing.value
                       ? null
@@ -227,25 +260,22 @@ class PdfSplitter extends StatelessWidget {
                   child: Text('Seleziona file PDF'),
                 )),
             SizedBox(height: 20),
+            Obx(() => controller.pdfFilePath.value != null
+                ? Text('PDF: ${controller.pdfFilePath.value}')
+                : Container()),
+            SizedBox(height: 20),
             Obx(() => ElevatedButton(
                   onPressed: controller.isProcessing.value
                       ? null
                       : controller.splitPdf,
-                  child: Text('Splitta e rinomina PDF'),
+                  child: Text('Splitta e Rinomina PDF'),
                 )),
             SizedBox(height: 20),
             Obx(() => controller.isProcessing.value
                 ? CircularProgressIndicator()
                 : Container()),
             SizedBox(height: 20),
-            Obx(() => Text(controller.message.value)),
-            SizedBox(height: 20),
-            Obx(() => controller.csvFilePath.value != null
-                ? Text('CSV scelto: ${controller.csvFilePath.value}')
-                : Container()),
-            Obx(() => controller.pdfFilePath.value != null
-                ? Text('PDF scelto: ${controller.pdfFilePath.value}')
-                : Container()),
+            Obx(() => Text(controller.message)),
           ],
         ),
       ),
