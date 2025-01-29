@@ -73,6 +73,12 @@ class PdfSplitterController extends GetxController {
     logController.logError(msg); // Usa logDebug per i messaggi di errore
   }
 
+  appDebug(String msg) {
+    //final logController = Get.find<LogController>();
+    //logController.logDebug(msg); // Usa logDebug per i messaggi di errore
+    print('DEBUG: $msg'); // Usa logDebug per i messaggi di errore
+  }
+
   // Seleziona il file CSV
   Future<void> pickCsvFile() async {
     FilePickerResult? result = await FilePicker.platform
@@ -108,8 +114,8 @@ class PdfSplitterController extends GetxController {
       } else if (x > pageIndex) {
         pdf.pages.removeAt(1);
       } else {
-        appInfo('Pagina $x OK!');
-        message = 'Pagina $x OK!';
+        appDebug('Pagina $x OK!');
+        //message = 'Pagina $x OK!';
       }
     }
     return pdf;
@@ -155,6 +161,14 @@ class PdfSplitterController extends GetxController {
     }
   }
 
+  // Funzione che verifica se il valore è un numero
+  bool isOK(dynamic valore) {
+    if (valore == null) return false;
+    if (valore is int) return true;
+    if (valore is double) return false;
+    return false;
+  }
+
   // Splitta il PDF
   Future<void> splitPdf() async {
     if (csvFilePath.value == null || pdfFilePath.value == null) {
@@ -163,13 +177,14 @@ class PdfSplitterController extends GetxController {
     }
 
     try {
+      appInfo('<--------------SPLITTING---------------->');
       isProcessing.value = true;
 
       var d = FirstOccurrenceSettingsDetector(
           fieldDelimiters: [';', ','],
           eols: ['\n', '\r\n']); // Leggi il file CSV
       final csv = File(csvFilePath.value!).readAsStringSync();
-      final fields = CsvToListConverter(
+      List<List<dynamic>> fields = CsvToListConverter(
               csvSettingsDetector: d, convertEmptyTo: EmptyValue.NULL)
           .convert(csv);
 
@@ -179,6 +194,12 @@ class PdfSplitterController extends GetxController {
         return;
       }
 
+      // Filtra le righe per mantenere solo quelle che iniziano con un numero
+      fields = fields.where((row) {
+        // Verifica se il primo campo è un numero
+        return row.isNotEmpty && isOK(row[0]);
+      }).toList();
+
       fields.removeWhere((row) => row.contains(null));
       List<String> fileNames = fields.map((row) => row[1].toString()).toList();
       List<String> dirNames = fields.map((row) => row[3].toString()).toList();
@@ -186,6 +207,7 @@ class PdfSplitterController extends GetxController {
           fields.map((row) => row[4].toString()).toList();
       List<int> pageNumbers =
           fields.map((row) => int.tryParse(row[0].toString()) ?? 0).toList();
+
       // Carica il PDF originale
       final pdfDocument = await _loadPdfDocument(pdfFilePath.value!);
 
@@ -206,20 +228,6 @@ class PdfSplitterController extends GetxController {
 
       // Suddividi il PDF in singole pagine creando le directory di destinazione
       for (int i = 0; i < fileNames.length; i++) {
-        String newDirPath = path.joinAll(
-            [documentsPath, 'pdf_splitter', dirNames[i], subdirNames[i]]);
-
-        // Crea la directory se non esiste
-        Directory outputDir = Directory(newDirPath);
-        if (!await outputDir.exists()) {
-          await outputDir.create(recursive: true);
-          message = 'Directory creata: $newDirPath';
-          appInfo('Directory creata: $newDirPath');
-        } else {
-          message = 'La directory $newDirPath esiste già.';
-          appInfo('La directory $newDirPath esiste già.');
-        }
-
         //Carica il file pdf sempre completo
         PdfDocument inPdf = await _loadPdfDocument(pdfFilePath.value!);
         //Estrae la pagina i dal file pdf
@@ -229,21 +237,38 @@ class PdfSplitterController extends GetxController {
         String name = extractName(outPdf);
 
         if (name != fileNames[i]) {
+          message = 'ERROR! Pagina: ${pageNumbers[i]}';
           appError(
-              'errore tra  contenuto PDF ($name) e file CSV indice $i (${fileNames[i]})');
-        } else
-          appInfo('Nome OK - $name');
+              '${pageNumbers[i]} - PDF ($name) - file CSV  (${fileNames[i]}) Errore!');
+        } else {
+          appInfo('${pageNumbers[i]} - Nome - $name  OK!');
 
-        // Crea un nome di file per ciascun PDF
-        final outputFileName = '${fileNames[i]}.pdf';
-        final filePath = path.join(outputDir.path, outputFileName);
+          message = 'Pagina ${pageNumbers[i]} - Nome - $name  OK!';
 
-        // Salva ogni singola pagina come file PDF
-        final file = File(filePath);
-        await file.writeAsBytes(await outPdf.save());
-        appInfo('File salvato: $filePath');
-        outPdf.dispose();
-        message = 'File salvato: $filePath';
+          String newDirPath = path.joinAll(
+              [documentsPath, 'pdf_splitter', dirNames[i], subdirNames[i]]);
+
+          // Crea la directory se non esiste
+          Directory outputDir = Directory(newDirPath);
+          if (!await outputDir.exists()) {
+            await outputDir.create(recursive: true);
+            //message = 'Directory creata: $newDirPath';
+            appDebug('Directory creata: $newDirPath');
+          } else {
+            //message = 'La directory $newDirPath esiste già.';
+            appDebug('La directory $newDirPath esiste già.');
+          }
+
+          // Crea un nome di file per ciascun PDF
+          final outputFileName = '${fileNames[i]}.pdf';
+          final filePath = path.join(outputDir.path, outputFileName);
+
+          // Salva ogni singola pagina come file PDF
+          final file = File(filePath);
+          await file.writeAsBytes(await outPdf.save());
+          appInfo('File salvato: $filePath');
+          outPdf.dispose();
+        }
       }
       message = 'PDF splittati e rinominati';
       appInfo('PDF splittati e rinominati');
