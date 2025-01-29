@@ -115,6 +115,46 @@ class PdfSplitterController extends GetxController {
     return pdf;
   }
 
+  String extractName(PdfDocument outPdf) {
+    try {
+      // Legge il file di testo
+      String text = PdfTextExtractor(outPdf).extractText();
+
+      // Trova la posizione della frase "Si attesta che"
+      final startIndex = text.indexOf("Si attesta che");
+
+      if (startIndex == -1) {
+        message = "Frase 'Si attesta che' non trovata nel file.";
+        appError("Frase 'Si attesta che' non trovata nel file.");
+        return "Frase 'Si attesta che' non trovata nel file.";
+      }
+
+      // Estrae il testo che inizia con "Si attesta che"
+      String substring = text.substring(startIndex);
+
+      // Trova la fine della stringa, che è il trattino ('-')
+      final endIndex = substring.indexOf('-');
+      if (endIndex == -1) {
+        message =
+            "Trattino di separazione del nome '-' non trovato nel contenuto del testo.";
+        appError(
+            "Trattino di separazione del nome '-' non trovato nel contenuto del testo.");
+        return "Trattino di separazione del nome '-' non trovato nel contenuto del testo.";
+      }
+
+      // Estrae il testo tra "Si attesta che" e il trattino
+      String nomeCognomeParte =
+          substring.substring("Si attesta che".length, endIndex).trim();
+
+      // Restituisce il risultato
+      return nomeCognomeParte;
+    } catch (e) {
+      message = "Errore durante la lettura del contenuto del file PDF";
+      appError("Errore durante la lettura del contenuto del file PDF");
+      return "Errore durante la lettura del contenuto del file PDF";
+    }
+  }
+
   // Splitta il PDF
   Future<void> splitPdf() async {
     if (csvFilePath.value == null || pdfFilePath.value == null) {
@@ -184,6 +224,15 @@ class PdfSplitterController extends GetxController {
         PdfDocument inPdf = await _loadPdfDocument(pdfFilePath.value!);
         //Estrae la pagina i dal file pdf
         PdfDocument outPdf = extractPage(pageNumbers[i] - 1, inPdf);
+
+        //cerca il nome dell'utente il suffisso regex
+        String name = extractName(outPdf);
+
+        if (name != fileNames[i]) {
+          appError(
+              'errore tra  contenuto PDF ($name) e file CSV indice $i (${fileNames[i]})');
+        } else
+          appInfo('Nome OK - $name');
 
         // Crea un nome di file per ciascun PDF
         final outputFileName = '${fileNames[i]}.pdf';
