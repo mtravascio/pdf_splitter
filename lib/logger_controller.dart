@@ -32,7 +32,7 @@ class LogController extends GetxController {
     String newDirPath = path.joinAll([documentsPath, 'pdf_splitter', 'log']);
     final logDirectory = Directory(newDirPath);
     if (!await logDirectory.exists()) {
-      await logDirectory.create();
+      await logDirectory.create(recursive: true);
     }
     return logDirectory;
   }
