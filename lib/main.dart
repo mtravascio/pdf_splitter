@@ -121,6 +121,42 @@ class PdfSplitterController extends GetxController {
     return pdf;
   }
 
+  //Non trova occorrenze se l'occorrenza termina con l'apostrofo.
+  List<String> cercaOccorrenze(String testo, String occorrenza) {
+    // Definisci una regex per cercare l'occorrenza all'interno di un testo
+    String occorrenzaEscaped = RegExp.escape(occorrenza);
+
+    // Il pattern cerca una sequenza di parole (separati da spazi) che coincidano esattamente con 'occorrenza'
+    RegExp regExp = RegExp(r'\b' + occorrenzaEscaped + r'\b');
+
+    // Trova tutte le corrispondenze nel testo
+    Iterable<Match> matches = regExp.allMatches(testo);
+
+    // Estrai le corrispondenze e le restituisce in una lista
+    List<String> risultati = [];
+    for (var match in matches) {
+      risultati.add(match.group(0)!);
+    }
+
+    return risultati;
+  }
+
+  //Da rivedere i messaggi di errore e di info
+  bool SearchName(String name, PdfDocument outPdf) {
+    // Legge il file di testo
+    String text = PdfTextExtractor(outPdf).extractText();
+
+    List<String> nomeCognome = cercaOccorrenze(text, name);
+
+    if (nomeCognome.isNotEmpty) {
+      appInfo('Nome $name [$nomeCognome] OK!');
+      return true;
+    } else {
+      appError('Nome $name [$nomeCognome] Non TROVATO!');
+      return false;
+    }
+  }
+
   String extractName(PdfDocument outPdf) {
     try {
       // Legge il file di testo
@@ -233,17 +269,18 @@ class PdfSplitterController extends GetxController {
         //Estrae la pagina i dal file pdf
         PdfDocument outPdf = extractPage(pageNumbers[i] - 1, inPdf);
 
-        //cerca il nome dell'utente il suffisso regex
-        String name = extractName(outPdf);
+        //Estrae il campo nome all'interno del file PDF
+        //String name = extractName(outPdf);
+        //if (name != fileNames[i]) {
 
-        if (name != fileNames[i]) {
-          message = 'ERROR! Pagina: ${pageNumbers[i]}';
-          appError(
-              '${pageNumbers[i]} - PDF ($name) - file CSV  (${fileNames[i]}) Errore!');
+        //Cerca il nome dell'utente all'interno del filePdf
+        if (!SearchName(fileNames[i], outPdf)) {
+          message = 'Pagina: ${pageNumbers[i]} - ${fileNames[i]} ERROR! ';
+          appError('${pageNumbers[i]} - ${fileNames[i]} Errore!');
         } else {
-          appInfo('${pageNumbers[i]} - Nome - $name  OK!');
+          appInfo('${pageNumbers[i]} - ${fileNames[i]}  OK!');
 
-          message = 'Pagina ${pageNumbers[i]} - Nome - $name  OK!';
+          message = 'Pagina ${pageNumbers[i]} - ${fileNames[i]}  OK!';
 
           String newDirPath = path.joinAll(
               [documentsPath, 'pdf_splitter', dirNames[i], subdirNames[i]]);
