@@ -1,0 +1,32 @@
+display_name: PDF Splitter
+package_name: pdf-splitter
+maintainer:
+  name: Massimo Travascio
+  email: mtravasciocisia@gmail.com
+priority: optional
+section: x11
+installed_size: 23584
+essential: false
+icon: assets/icon.png
+
+postinstall_scripts:
+  - echo "Installed awesome app"
+postuninstall_scripts:
+  - echo "Goodbye!"
+
+keywords:
+  - PDF
+  - Splitter
+  - PDF Splitter
+  - Application
+
+generic_name: Pdf Splitter
+
+categories:
+  - Utility
+
+startup_notify: true
+
+# You can also specify [metainfo](https://freedesktop.org/software/appstream/docs/chap-Quickstart.html) file
+# which contains metadata of the app.
+# metainfo: linux/packaging/myappid.appdata.xml
