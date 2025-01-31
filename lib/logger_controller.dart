@@ -31,8 +31,8 @@ class LogController extends GetxController {
         directory.path.replaceAll('Library/Containers', 'Documents');
     String newDirPath = path.joinAll([documentsPath, 'pdf_splitter', 'log']);
     final logDirectory = Directory(newDirPath);
-    if (!await logDirectory.exists()) {
-      await logDirectory.create(recursive: true);
+    if (!logDirectory.existsSync()) {
+      logDirectory.createSync(recursive: true);
     }
     return logDirectory;
   }
@@ -44,15 +44,15 @@ class LogController extends GetxController {
   }
 
   // Scrivi un messaggio nel file di log
-  Future<void> _writeLog(String message) async {
+  void _writeLog(String message) {
     final logFile = File(_getLogFileName());
     final logMessage =
         '${DateFormat('yyyy-MM-dd HH:mm:ss').format(DateTime.now())} - $message\n';
-    await logFile.writeAsString(logMessage, mode: FileMode.append);
+    logFile.writeAsStringSync(logMessage, mode: FileMode.append);
   }
 
   // Gestisci la rotazione dei log: rimuovi i log più vecchi di 30 giorni
-  Future<void> _cleanUpOldLogs() async {
+  void _cleanUpOldLogs() {
     final files = logDirectory.listSync();
     final thresholdDate = DateTime.now().subtract(Duration(days: maxLogDays));
 
@@ -64,27 +64,27 @@ class LogController extends GetxController {
         final fileDate = DateFormat('yyyyMMdd').parse(dateString);
 
         if (fileDate.isBefore(thresholdDate)) {
-          await file.delete();
+          file.deleteSync();
         }
       }
     }
   }
 
   // Funzione per scrivere i log di INFO
-  void logInfo(String message) async {
+  void logInfo(String message) {
     debugPrint('INFO: $message');
-    await _writeLog('INFO: $message');
+    _writeLog('INFO: $message');
   }
 
   // Funzione per scrivere i log di DEBUG
-  void logDebug(String message) async {
+  void logDebug(String message) {
     debugPrint('DEBUG: $message');
-    await _writeLog('DEBUG: $message');
+    _writeLog('DEBUG: $message');
   }
 
   // Funzione per scrivere i log di ERROR
-  void logError(String message) async {
+  void logError(String message) {
     debugPrint('ERROR: $message');
-    await _writeLog('ERROR: $message');
+    _writeLog('ERROR: $message');
   }
 }
