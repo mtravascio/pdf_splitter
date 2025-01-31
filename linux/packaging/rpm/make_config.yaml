@@ -1,0 +1,25 @@
+icon: assets/icon.png
+summary: A PDF Splitter from CSV file
+group: Application/Emulator
+vendor: Massimo Travascio
+packager: Massimo Travascio
+packagerEmail: mtravasciocisia@gmail.com
+license: GPLv3
+url: https://github.com/mtravascio/pdf_splitter
+
+display_name: PDF Splitter
+
+
+keywords:
+  - PDF
+  - Splitter
+  - PDF Splitter
+  - Application
+
+
+generic_name: Pdf Splitter
+
+categories:
+  - Utility
+
+startup_notify: true
