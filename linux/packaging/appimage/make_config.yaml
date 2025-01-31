@@ -1,0 +1,16 @@
+display_name: PDF Splitter
+
+icon: assets/icon.png
+
+keywords:
+  - PDF
+  - Splitter
+  - PDF Splitter
+  - Application
+
+generic_name: Pdf Splitter
+
+categories:
+  - Utility
+
+startup_notify: true
