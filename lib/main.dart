@@ -127,7 +127,7 @@ class PdfSplitterController extends GetxController {
     String occorrenzaEscaped = RegExp.escape(occorrenza);
 
     // Il pattern cerca una sequenza di parole (separati da spazi) che coincidano esattamente con 'occorrenza'
-    RegExp regExp = RegExp(r'\b' + occorrenzaEscaped + r'\b');
+    RegExp regExp = RegExp(r'\b' + occorrenzaEscaped);
 
     // Trova tutte le corrispondenze nel testo
     Iterable<Match> matches = regExp.allMatches(testo);
