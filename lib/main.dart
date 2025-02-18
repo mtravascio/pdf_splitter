@@ -19,7 +19,7 @@ void main() {
   WidgetsFlutterBinding.ensureInitialized();
   //DesktopWindow.setMinWindowSize(Size(300, 300)); // Imposta la dimensione minima della finestra
   //DesktopWindow.setMaxWindowSize(Size(800, 800)); // Imposta la dimensione massima della finestra
-  DesktopWindow.setWindowSize(Size(400, 500));
+  DesktopWindow.setWindowSize(Size(400, 600));
   //DesktopWindow.setBorders(false);
   runApp(MyApp());
 }
@@ -40,6 +40,7 @@ class PdfSplitterController extends GetxController {
   var _message = ''.obs;
   var appName = ''.obs;
   var version = ''.obs;
+  var createDirectories = true.obs;
 
   // Getter per ottenere il valore del messaggio
   String get message => _message.value;
@@ -285,20 +286,25 @@ class PdfSplitterController extends GetxController {
           String newDirPath = path.joinAll(
               [documentsPath, 'pdf_splitter', dirNames[i], subdirNames[i]]);
 
-          // Crea la directory se non esiste
-          Directory outputDir = Directory(newDirPath);
-          if (!await outputDir.exists()) {
-            await outputDir.create(recursive: true);
-            //message = 'Directory creata: $newDirPath';
-            appDebug('Directory creata: $newDirPath');
+          if (createDirectories.value) {
+            // Crea la directory se non esiste
+            Directory outputDir = Directory(newDirPath);
+            if (!await outputDir.exists()) {
+              await outputDir.create(recursive: true);
+              appDebug('Directory creata: $newDirPath');
+            } else {
+              appDebug('La directory $newDirPath esiste già.');
+            }
           } else {
-            //message = 'La directory $newDirPath esiste già.';
-            appDebug('La directory $newDirPath esiste già.');
+            appDebug(
+                'Creazione directory disabilitata. I file verranno salvati nella directory principale.');
+            newDirPath = path.join(documentsPath,
+                'pdf_splitter'); // Imposta la directory principale
           }
 
           // Crea un nome di file per ciascun PDF
           final outputFileName = '${fileNames[i]}.pdf';
-          final filePath = path.join(outputDir.path, outputFileName);
+          final filePath = path.join(newDirPath, outputFileName);
 
           // Salva ogni singola pagina come file PDF
           final file = File(filePath);
@@ -380,6 +386,14 @@ class PdfSplitter extends StatelessWidget {
                       ? null
                       : controller.splitPdf,
                   child: Text('Splitta e Rinomina PDF'),
+                )),
+            SizedBox(height: 20),
+            Obx(() => SwitchListTile(
+                  title: Text('Crea directory e subdirectory'),
+                  value: controller.createDirectories.value,
+                  onChanged: (bool value) {
+                    controller.createDirectories.value = value;
+                  },
                 )),
             SizedBox(height: 20),
             Obx(() => controller.isProcessing.value
