@@ -41,6 +41,7 @@ class PdfSplitterController extends GetxController {
   var appName = ''.obs;
   var version = ''.obs;
   var createDirectories = true.obs;
+  var canEnableSwitch = false.obs;
 
   // Getter per ottenere il valore del messaggio
   String get message => _message.value;
@@ -86,6 +87,43 @@ class PdfSplitterController extends GetxController {
         .pickFiles(type: FileType.custom, allowedExtensions: ['csv']);
     if (result != null) {
       csvFilePath.value = result.files.single.path;
+      checkCSV();
+    }
+  }
+
+  // Metodo per verificare la presenza delle colonne 'directory' e 'subdirectory'
+  Future<void> checkCSV() async {
+    if (csvFilePath.value == null) return;
+
+    final csvFile = File(csvFilePath.value!);
+    if (csvFile.existsSync()) {
+      String csvContent = await csvFile.readAsString();
+
+      var d = FirstOccurrenceSettingsDetector(
+        fieldDelimiters: [';', ','],
+        eols: ['\n', '\r\n'],
+      );
+
+      List<List<dynamic>> fields = CsvToListConverter(
+              csvSettingsDetector: d, convertEmptyTo: EmptyValue.NULL)
+          .convert(csvContent);
+
+      if (fields.isEmpty || fields[0].length < 2) {
+        message = 'CSV non valido - #,nome,descr,dir,subdir';
+        appError('CSV non valido - #,nome,descr,dir,subdir');
+        //appInfo('CSV non valido - #,nome,descr,dir,subdir');
+        return;
+      }
+      // Verifica se la colonna 4 (indice 3) e la colonna 5 (indice 4) sono presenti
+      if (fields.isNotEmpty && fields[0].length >= 5) {
+        // Se entrambe le colonne 4 e 5 esistono, abilitare lo switch
+        createDirectories.value = true; // Imposta su ON
+        canEnableSwitch.value = true; // Abilita lo switch
+      } else {
+        // Se una delle colonne manca, disabilitare lo switch
+        createDirectories.value = false; // Imposta su OFF
+        canEnableSwitch.value = false; // Disabilita lo switch
+      }
     }
   }
 
@@ -225,12 +263,23 @@ class PdfSplitterController extends GetxController {
               csvSettingsDetector: d, convertEmptyTo: EmptyValue.NULL)
           .convert(csv);
 
-      if (fields.isEmpty || fields[0].length < 5) {
+      if (fields.isEmpty || fields[0].length < 2) {
         message = 'CSV non valido - #,nome,descr,dir,subdir';
         appError('CSV non valido - #,nome,descr,dir,subdir');
         return;
       }
-
+/*
+      // Verifica se la colonna 4 (indice 3) e la colonna 5 (indice 4) sono presenti
+      if (fields.isNotEmpty && fields[0].length >= 5) {
+        // Se entrambe le colonne 4 e 5 esistono, abilitare lo switch
+        createDirectories.value = true; // Imposta su ON
+        canEnableSwitch.value = true; // Abilita lo switch
+      } else {
+        // Se una delle colonne manca, disabilitare lo switch
+        createDirectories.value = false; // Imposta su OFF
+        canEnableSwitch.value = false; // Disabilita lo switch
+      }
+*/
       // Filtra le righe per mantenere solo quelle che iniziano con un numero
       fields = fields.where((row) {
         // Verifica se il primo campo è un numero
@@ -238,12 +287,17 @@ class PdfSplitterController extends GetxController {
       }).toList();
 
       fields.removeWhere((row) => row.contains(null));
-      List<String> fileNames = fields.map((row) => row[1].toString()).toList();
-      List<String> dirNames = fields.map((row) => row[3].toString()).toList();
-      List<String> subdirNames =
-          fields.map((row) => row[4].toString()).toList();
       List<int> pageNumbers =
           fields.map((row) => int.tryParse(row[0].toString()) ?? 0).toList();
+      List<String> fileNames = fields.map((row) => row[1].toString()).toList();
+      List<String> dirNames = [];
+      List<String> subdirNames = [];
+
+      // Se l'opzione di creare directory è attiva, estrai anche dirNames e subdirNames
+      if (createDirectories.value) {
+        dirNames = fields.map((row) => row[3].toString()).toList();
+        subdirNames = fields.map((row) => row[4].toString()).toList();
+      }
 
       // Carica il PDF originale
       final pdfDocument = await _loadPdfDocument(pdfFilePath.value!);
@@ -283,11 +337,20 @@ class PdfSplitterController extends GetxController {
 
           message = 'Pagina ${pageNumbers[i]} - ${fileNames[i]}  OK!';
 
-          String newDirPath = path.joinAll(
-              [documentsPath, 'pdf_splitter', dirNames[i], subdirNames[i]]);
+          String newDirPath = path.join(documentsPath, 'pdf_splitter');
 
           if (createDirectories.value) {
-            // Crea la directory se non esiste
+            // Se la creazione delle directory è abilitata, aggiungi dirNames e subdirNames
+            newDirPath =
+                path.joinAll([newDirPath, dirNames[i], subdirNames[i]]);
+          } else {
+            // Se la creazione delle directory non è abilitata, usa la directory principale
+            appDebug(
+                'Creazione directory disabilitata. I file verranno salvati nella directory principale.');
+          }
+
+          // Crea la directory se non esiste
+          if (createDirectories.value) {
             Directory outputDir = Directory(newDirPath);
             if (!await outputDir.exists()) {
               await outputDir.create(recursive: true);
@@ -388,12 +451,19 @@ class PdfSplitter extends StatelessWidget {
                   child: Text('Splitta e Rinomina PDF'),
                 )),
             SizedBox(height: 20),
+            // Switch per abilitare/disabilitare la creazione di directory
             Obx(() => SwitchListTile(
-                  title: Text('Crea directory e subdirectory'),
+                  title: Text("Crea directory e sottodirectory"),
                   value: controller.createDirectories.value,
-                  onChanged: (bool value) {
-                    controller.createDirectories.value = value;
-                  },
+                  onChanged: controller.canEnableSwitch.value
+                      ? (value) {
+                          controller.createDirectories.value = value;
+                        }
+                      : null, // Disabilita lo switch se canEnableSwitch è false
+                  subtitle: controller.canEnableSwitch.value
+                      ? null
+                      : Text(
+                          "Le colonne 'directory' e 'subdirectory' non sono presenti nel CSV."),
                 )),
             SizedBox(height: 20),
             Obx(() => controller.isProcessing.value
