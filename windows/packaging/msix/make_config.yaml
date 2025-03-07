@@ -1,5 +1,5 @@
 display_name: PDF Splitter
-msix_version: 1.4.2.1
+msix_version: 1.6.0.1
 certificate_path: C:\dev\pdf_splitter\app_regeomaria_net.pfx
 certificate_password: 34v3M4r14
 logo_path: c:\dev\pdf_splitter\assets\icon.png
