@@ -40,8 +40,10 @@ class PdfSplitterController extends GetxController {
   var _message = ''.obs;
   var appName = ''.obs;
   var version = ''.obs;
+  var useDescription = false.obs;
   var createDirectories = true.obs;
-  var canEnableSwitch = false.obs;
+  var canEnableSwitchDir = false.obs;
+  var canEnableSwitchDescr = false.obs;
 
   // Getter per ottenere il valore del messaggio
   String get message => _message.value;
@@ -116,13 +118,19 @@ class PdfSplitterController extends GetxController {
       }
       // Verifica se la colonna 4 (indice 3) e la colonna 5 (indice 4) sono presenti
       if (fields.isNotEmpty && fields[0].length >= 5) {
-        // Se entrambe le colonne 4 e 5 esistono, abilitare lo switch
+        // Se entrambe le colonne 0 e 1 esistono, abilitare lo switch
         createDirectories.value = true; // Imposta su ON
-        canEnableSwitch.value = true; // Abilita lo switch
-      } else {
-        // Se una delle colonne manca, disabilitare lo switch
+        canEnableSwitchDir.value = true; // Abilita lo switch
+        canEnableSwitchDescr.value = true; // Abilita lo switch
+      } else if (fields.isNotEmpty && fields[0].length >= 3) {
+        // Se una delle colonne manca, disabilitare lo switch ma ancora descr esiste
         createDirectories.value = false; // Imposta su OFF
-        canEnableSwitch.value = false; // Disabilita lo switch
+        canEnableSwitchDir.value = false; // Disabilita lo switch
+        canEnableSwitchDescr.value = true; // Abilita lo switch
+      } else {
+        createDirectories.value = false; // Imposta su OFF
+        canEnableSwitchDir.value = false; // Disabilita lo switch
+        canEnableSwitchDescr.value = false; // Disabilita lo switch
       }
     }
   }
@@ -290,6 +298,10 @@ class PdfSplitterController extends GetxController {
       List<int> pageNumbers =
           fields.map((row) => int.tryParse(row[0].toString()) ?? 0).toList();
       List<String> fileNames = fields.map((row) => row[1].toString()).toList();
+      List<String> descNames = [];
+      if (useDescription.value) {
+        descNames = fields.map((row) => row[2].toString()).toList();
+      }
       List<String> dirNames = [];
       List<String> subdirNames = [];
 
@@ -366,7 +378,13 @@ class PdfSplitterController extends GetxController {
           }
 
           // Crea un nome di file per ciascun PDF
-          final outputFileName = '${fileNames[i]}.pdf';
+          String outputFileName = '';
+          if (useDescription.value) {
+            outputFileName = '${fileNames[i]}_${descNames[i]}.pdf';
+          } else {
+            outputFileName = '${fileNames[i]}.pdf';
+          }
+
           final filePath = path.join(newDirPath, outputFileName);
 
           // Salva ogni singola pagina come file PDF
@@ -453,17 +471,33 @@ class PdfSplitter extends StatelessWidget {
             SizedBox(height: 20),
             // Switch per abilitare/disabilitare la creazione di directory
             Obx(() => SwitchListTile(
-                  title: Text("Crea directory e sottodirectory"),
+                  title: Text("Usa la 'description' nel nomefile"),
+                  value: controller.useDescription.value,
+                  onChanged: controller.canEnableSwitchDescr.value
+                      ? (value) {
+                          controller.useDescription.value = value;
+                        }
+                      : null, // Disabilita lo switch se canEnableSwitch è false
+                  subtitle: controller.canEnableSwitchDescr.value
+                      ? null
+                      : Text(
+                          "La colonna 'description'(#3) non è presente nel CSV."),
+                )),
+            SizedBox(height: 20),
+
+            // Switch per abilitare/disabilitare la creazione di directory
+            Obx(() => SwitchListTile(
+                  title: Text("Crea 'directory' e 'sottodirectory'"),
                   value: controller.createDirectories.value,
-                  onChanged: controller.canEnableSwitch.value
+                  onChanged: controller.canEnableSwitchDir.value
                       ? (value) {
                           controller.createDirectories.value = value;
                         }
                       : null, // Disabilita lo switch se canEnableSwitch è false
-                  subtitle: controller.canEnableSwitch.value
+                  subtitle: controller.canEnableSwitchDir.value
                       ? null
                       : Text(
-                          "Le colonne 'directory' e 'subdirectory' non sono presenti nel CSV."),
+                          "Le colonne 'directory'(#4) e 'subdirectory'(#5) non sono presenti nel CSV."),
                 )),
             SizedBox(height: 20),
             Obx(() => controller.isProcessing.value
