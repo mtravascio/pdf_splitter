@@ -20,7 +20,7 @@ void main() {
   WidgetsFlutterBinding.ensureInitialized();
   //DesktopWindow.setMinWindowSize(Size(300, 300)); // Imposta la dimensione minima della finestra
   //DesktopWindow.setMaxWindowSize(Size(800, 800)); // Imposta la dimensione massima della finestra
-  DesktopWindow.setWindowSize(Size(400, 750));
+  DesktopWindow.setWindowSize(Size(400, 800));
   //DesktopWindow.setBorders(false);
   runApp(MyApp());
 }
@@ -137,8 +137,7 @@ class PdfSplitterController extends GetxController {
         canEnableSwitchDir.value = false; // Disabilita lo switch
         canEnableSwitchDescr.value = false; // Disabilita lo switch
       }
-      if (!Platform.isWindows &&
-          fields.isNotEmpty &&
+      if (fields.isNotEmpty &&
           fields[0].length >= 6 &&
           fields[0][5].toString().contains(RegExp(
               r'(?<=from:\s+)([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})'))) {
@@ -468,13 +467,13 @@ class PdfSplitterController extends GetxController {
     // Esegui il comando
     var result;
     if (Platform.isWindows) {
-      //ProcessResult result = await Process.run('cmd.exe', ['/c', command]);
-      result = await Process.run('cmd.exe', ['/c', 'echo $command']);
+      result = await Process.run('cmd.exe', ['/c', command]);
+      //result = await Process.run('cmd.exe', ['/c', 'echo $command']);
     } else if (Platform.isLinux) {
-      //ProcessResult result = await Process.run('bash', ['-c', command]);
+      //result = await Process.run('bash', ['-c', command]);
       result = await Process.run('bash', ['-c', 'echo $command']);
     } else if (Platform.isMacOS) {
-      //ProcessResult result = await Process.run('bash', ['-c', command]);
+      //result = await Process.run('bash', ['-c', command]);
       result = await Process.run('bash', ['-c', 'echo $command']);
     }
 
