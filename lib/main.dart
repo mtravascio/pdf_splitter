@@ -1,4 +1,5 @@
 import 'package:csv/csv_settings_autodetection.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:csv/csv.dart';
@@ -19,7 +20,7 @@ void main() {
   WidgetsFlutterBinding.ensureInitialized();
   //DesktopWindow.setMinWindowSize(Size(300, 300)); // Imposta la dimensione minima della finestra
   //DesktopWindow.setMaxWindowSize(Size(800, 800)); // Imposta la dimensione massima della finestra
-  DesktopWindow.setWindowSize(Size(400, 700));
+  DesktopWindow.setWindowSize(Size(400, 750));
   //DesktopWindow.setBorders(false);
   runApp(MyApp());
 }
@@ -42,8 +43,11 @@ class PdfSplitterController extends GetxController {
   var version = ''.obs;
   var useDescription = false.obs;
   var createDirectories = true.obs;
+  var sendEmailAfterSplit = false.obs;
   var canEnableSwitchDir = false.obs;
   var canEnableSwitchDescr = false.obs;
+  var canEnableSwitchEmail = false.obs;
+  String fromAddress = '';
 
   // Getter per ottenere il valore del messaggio
   String get message => _message.value;
@@ -116,6 +120,7 @@ class PdfSplitterController extends GetxController {
         //appInfo('CSV non valido - #,nome,descr,dir,subdir');
         return;
       }
+
       // Verifica se la colonna 4 (indice 3) e la colonna 5 (indice 4) sono presenti
       if (fields.isNotEmpty && fields[0].length >= 5) {
         // Se entrambe le colonne 0 e 1 esistono, abilitare lo switch
@@ -131,6 +136,29 @@ class PdfSplitterController extends GetxController {
         createDirectories.value = false; // Imposta su OFF
         canEnableSwitchDir.value = false; // Disabilita lo switch
         canEnableSwitchDescr.value = false; // Disabilita lo switch
+      }
+      if (!Platform.isWindows &&
+          fields.isNotEmpty &&
+          fields[0].length >= 6 &&
+          fields[0][5].toString().contains(RegExp(
+              r'(?<=from:\s+)([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})'))) {
+        RegExp emailRegExp = RegExp(
+            r'(?<=from:\s+)([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})');
+        var match = emailRegExp.firstMatch(fields[0][5].toString());
+        if (match != null) {
+          fromAddress = match.group(0)!;
+          message = 'Email di invio: $fromAddress';
+          appInfo('Email di invio: $fromAddress');
+        } else {
+          message = 'Email di invio non valida!';
+          appError('Email di invio non valida!');
+        }
+        sendEmailAfterSplit.value = false; // Imposta su OFF precauzionalmente
+        canEnableSwitchEmail.value = true; // Abilita lo switch
+      } else {
+        // Se una delle colonne manca, disabilitare lo switch
+        sendEmailAfterSplit.value = false; // Imposta su OFF
+        canEnableSwitchEmail.value = false; // Disabilita lo switch
       }
     }
   }
@@ -392,6 +420,13 @@ class PdfSplitterController extends GetxController {
           await file.writeAsBytes(await outPdf.save());
           appInfo('File salvato: $filePath');
           outPdf.dispose();
+
+          if (sendEmailAfterSplit.value) {
+            // Invia l'email con il file PDF in allegato
+            message = 'Invio email a ${fields[i][5]} con file $filePath';
+            appInfo('Invio email a ${fields[i][5]} con file $filePath');
+            await sendEmail(fields[i][5].toString(), filePath);
+          }
         }
       }
       message = 'PDF splittati e rinominati';
@@ -401,6 +436,53 @@ class PdfSplitterController extends GetxController {
       appError('Errore durante il processamento: $e');
     } finally {
       isProcessing.value = false;
+    }
+  }
+
+  // Funzione per inviare un'email usando lo script VBS
+  Future<void> sendEmail(String email, String filePath) async {
+    // Leggi lo script VBS dagli asset
+    String vbsScript = await rootBundle.loadString('assets/send_mail.vbs');
+    String mailScript = await rootBundle.loadString('assets/send_mail.sh');
+
+    Directory tempDir = await getTemporaryDirectory();
+    String tempDirPath = tempDir.path;
+    // Scrivi lo script VBS in un file temporaneo
+    //File tempVbsFile = File('C:\\send_email.vbs');
+    String command;
+    if (Platform.isWindows) {
+      File tempVbsFile = File(path.join(tempDirPath, 'send_email.vbs'));
+      await tempVbsFile.writeAsString(vbsScript);
+      // Comando per eseguire lo script VBS
+      command =
+          'cscript //nologo ${tempVbsFile.path} -from "$fromAddress" -to "$email" -subject "Avvisio Importate:" -body "Documentazione in allegato" -attach "$filePath"';
+    } else {
+      File tempShFile = File(path.join(tempDirPath, 'send_email.sh'));
+      await tempShFile.writeAsString(mailScript);
+      command =
+          '${tempShFile.path} -from "$fromAddress" -to "$email" -subject "Avvisio Importate:" -body "Documentazione in allegato" -attach "$filePath"';
+    }
+    // Comando per eseguire lo script VBS
+    appDebug('Comando: $command');
+
+    // Esegui il comando
+    var result;
+    if (Platform.isWindows) {
+      //ProcessResult result = await Process.run('cmd.exe', ['/c', command]);
+      result = await Process.run('cmd.exe', ['/c', 'echo $command']);
+    } else if (Platform.isLinux) {
+      //ProcessResult result = await Process.run('bash', ['-c', command]);
+      result = await Process.run('bash', ['-c', 'echo $command']);
+    } else if (Platform.isMacOS) {
+      //ProcessResult result = await Process.run('bash', ['-c', command]);
+      result = await Process.run('bash', ['-c', 'echo $command']);
+    }
+
+    if (result.exitCode == 0) {
+      message = 'Email inviata con successo a $email!';
+      appInfo("Email inviata con successo a $email");
+    } else {
+      appError("Errore durante l'invio dell'email: ${result.stderr}");
     }
   }
 }
@@ -467,6 +549,20 @@ class PdfSplitter extends StatelessWidget {
                       ? null
                       : controller.splitPdf,
                   child: Text('Splitta e Rinomina PDF'),
+                )),
+            SizedBox(height: 20),
+            // Switch per abilitare/disabilitare l'invio delle email
+            Obx(() => SwitchListTile(
+                  title: Text("Invia email dopo lo split"),
+                  value: controller.sendEmailAfterSplit.value,
+                  onChanged: controller.canEnableSwitchEmail.value
+                      ? (value) {
+                          controller.sendEmailAfterSplit.value = value;
+                        }
+                      : null, // Disabilita lo switch se canEnableSwitch è false
+                  subtitle: controller.canEnableSwitchEmail.value
+                      ? null
+                      : Text("La colonna 'email'(#6) non è presente nel CSV."),
                 )),
             SizedBox(height: 20),
             // Switch per abilitare/disabilitare la creazione di directory
