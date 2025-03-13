@@ -464,10 +464,12 @@ class PdfSplitterController extends GetxController {
     // Comando per eseguire lo script VBS
     appDebug('Comando: $command');
 
+    String regCommand = command.replaceAll(r'\', '');
     // Esegui il comando
     var result;
     if (Platform.isWindows) {
-      result = await Process.run('cmd.exe', ['/c', command]);
+      //result = await Process.run('cmd.exe', ['/c', command]);
+      result = await Process.run('cmd.exe', ['/c', regCommand]);
       //result = await Process.run('cmd.exe', ['/c', 'echo $command']);
     } else if (Platform.isLinux) {
       //result = await Process.run('bash', ['-c', command]);
