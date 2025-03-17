@@ -65,6 +65,19 @@ Set newMail = Nothing
 Set ol = Nothing
 
 ' ----------------------------------------------------------------------
+' Funzione per rimuovere i caratteri '\' all'inizio e alla fine della stringa
+' ----------------------------------------------------------------------
+Function TrimSlashes(str)
+    If Left(str, 1) = "\" Then
+        str = Mid(str, 2)
+    End If
+    If Right(str, 1) = "\" Then
+        str = Left(str, Len(str) - 1)
+    End If
+    TrimSlashes = str
+End Function
+
+' ----------------------------------------------------------------------
 ' Funzione per analizzare gli argomenti della riga di comando
 ' ----------------------------------------------------------------------
 Sub ParseArguments()
@@ -87,17 +100,17 @@ Sub ParseArguments()
                 ' Assegna il valore alla variabile corrispondente
                 Select Case key
                     Case "from"
-                        FromAddress = value
+                        FromAddress = TrimSlashes(value)
                     Case "to"
-                        ToAddress = value
+                        ToAddress = TrimSlashes(value)
                     Case "cc"
-                        CcAddress = value
+                        CcAddress = TrimSlashes(value)
                     Case "subject"
-                        MessageSubject = value
+                        MessageSubject = TrimSlashes(value)
                     Case "body"
-                        MessageBody = value
+                        MessageBody = TrimSlashes(value)
                     Case "attach"
-                        AttachmentPath = value
+                        AttachmentPath = TrimSlashes(value)
                 End Select
             End If
         End If
