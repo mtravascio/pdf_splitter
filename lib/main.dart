@@ -322,20 +322,22 @@ class PdfSplitterController extends GetxController {
       }).toList();
 
       fields.removeWhere((row) => row.contains(null));
-      List<int> pageNumbers =
-          fields.map((row) => int.tryParse(row[0].toString()) ?? 0).toList();
-      List<String> fileNames = fields.map((row) => row[1].toString()).toList();
+      List<int> pageNumbers = fields
+          .map((row) => int.tryParse(row[0].toString().trim()) ?? 0)
+          .toList();
+      List<String> fileNames =
+          fields.map((row) => row[1].toString().trim()).toList();
       List<String> descNames = [];
       if (useDescription.value) {
-        descNames = fields.map((row) => row[2].toString()).toList();
+        descNames = fields.map((row) => row[2].toString().trim()).toList();
       }
       List<String> dirNames = [];
       List<String> subdirNames = [];
 
       // Se l'opzione di creare directory è attiva, estrai anche dirNames e subdirNames
       if (createDirectories.value) {
-        dirNames = fields.map((row) => row[3].toString()).toList();
-        subdirNames = fields.map((row) => row[4].toString()).toList();
+        dirNames = fields.map((row) => row[3].toString().trim()).toList();
+        subdirNames = fields.map((row) => row[4].toString().trim()).toList();
       }
 
       // Carica il PDF originale
