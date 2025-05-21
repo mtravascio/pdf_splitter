@@ -1,0 +1,18 @@
+app-id: net.regeomaria.pdf_splitter
+runtime: org.freedesktop.Platform
+runtime-version: '23.08'
+sdk: org.freedesktop.Sdk
+command: pdf_splitter
+finish-args:
+  - --filesystem=home:rw
+  - --filesystem=xdg-documents:rw 
+  - --socket=x11
+modules:
+  - name: pdf_splitter
+    buildsystem: simple
+    build-commands:
+      - mkdir -p /app/bin
+      - cp -r * /app/bin/
+    sources:
+      - type: dir
+        path: ../bundle
