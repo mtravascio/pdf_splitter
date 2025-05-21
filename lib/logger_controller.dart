@@ -59,12 +59,33 @@ class LogController extends GetxController {
     for (var file in files) {
       if (file is File) {
         final fileName = file.uri.pathSegments.last;
-        final dateString =
-            fileName.substring(4, 12); // Estrai la data dal nome del file
-        final fileDate = DateFormat('yyyyMMdd').parse(dateString);
+        print('🧪 Found file: $fileName'); // Per debug: vedi tutti i file
 
-        if (fileDate.isBefore(thresholdDate)) {
-          file.deleteSync();
+        try {
+          // Usa RegExp per garantire che il nome del file sia nel formato corretto
+          final regex = RegExp(r'^log_(\d{8})\.txt$');
+          final match = regex.firstMatch(fileName);
+
+          if (match != null) {
+            final dateString = match.group(1)!; // Ottieni la data dal match
+            print('📅 Parsing file date from string: "$dateString"');
+            //final fileDate = DateFormat('yyyyMMdd').parse(dateString); // Parsea la data
+            final year = int.parse(dateString.substring(0, 4));
+            final month = int.parse(dateString.substring(4, 6));
+            final day = int.parse(dateString.substring(6, 8));
+            final fileDate = DateTime(year, month, day);
+
+            if (fileDate.isBefore(thresholdDate)) {
+              print(
+                  '🗑️ Deleting old log file: $fileName'); // Mostra quale file viene cancellato
+              file.deleteSync();
+            }
+          } else {
+            debugPrint(
+                '⚠️ Skipping non-log file: $fileName'); // Aggiunto per debug
+          }
+        } catch (e) {
+          debugPrint('❌ Errore nel parsing del file "$fileName": $e');
         }
       }
     }
