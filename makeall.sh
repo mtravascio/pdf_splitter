@@ -26,19 +26,19 @@ echo "Building for Linux flatpak"
 mkdir -p bundle
 cp -r ../../build/linux/x64/release/bundle/* bundle/
 
-flatpak-builder --force-clean build-dir flatpak/manifest.yaml
+#flatpak-builder --force-clean build-dir flatpak/manifest.yaml
 
-#flatpak-builder --run build-dir flatpak/manifest.yaml pdf_splitter per eseguirlo!
+#flatpak-builder --run build-dir flatpak/manifest.yaml pdf_splitter #per eseguirlo!
 
 
 flatpak-builder --repo=repo --force-clean build-dir flatpak/manifest.yaml #Crea la dir repo!
 
 flatpak build-bundle repo pdf_splitter.flatpak net.regeomaria.pdf_splitter #Crea il file pdf_splitter.flatpak! nella dir corrente
 
-#flatpak install --reinstall --user pdf_splitter.flatpak #Installa il pacchetto flatpak appena creato
+flatpak install --reinstall --user pdf_splitter.flatpak #Installa il pacchetto flatpak appena creato
 
-#flatpak run net.regeomaria.pdf_splitter #Esegue il pacchetto flatpak appena creato
+flatpak run net.regeomaria.pdf_splitter #Esegue il pacchetto flatpak appena creato
 
-#flatpak uninstall net.regeomaria.pdf_splitter #Disinstalla il pacchetto flatpak appena creato
+flatpak uninstall net.regeomaria.pdf_splitter #Disinstalla il pacchetto flatpak appena creato
 
 
