@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=PDF Splitter
+Comment=Split PDF files easily
+Exec=pdf_splitter
+Icon=net.regeomaria.pdf_splitter
+Terminal=false
+Type=Application
+Categories=Office;
+X-Flatpak=net.regeomaria.pdf_splitter

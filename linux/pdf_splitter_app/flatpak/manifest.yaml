@@ -7,12 +7,19 @@ finish-args:
   - --filesystem=home:rw
   - --filesystem=xdg-documents:rw 
   - --socket=x11
+  - --socket=wayland
+  - --device=dri
+  - --share=ipc
 modules:
   - name: pdf_splitter
     buildsystem: simple
     build-commands:
       - mkdir -p /app/bin
-      - cp -r * /app/bin/
+      - install -Dm755 pdf_splitter /app/bin/pdf_splitter
+      - cp -r data /app/bin/
+      - cp -r lib /app/bin/
+      - install -Dm644 net.regeomaria.pdf_splitter.desktop /app/share/applications/net.regeomaria.pdf_splitter.desktop
+      - install -Dm644 net.regeomaria.pdf_splitter.png /app/share/icons/hicolor/64x64/apps/net.regeomaria.pdf_splitter.png
     sources:
       - type: dir
         path: ../bundle
