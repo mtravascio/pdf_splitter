@@ -456,12 +456,12 @@ class PdfSplitterController extends GetxController {
       await tempVbsFile.writeAsString(vbsScript);
       // Comando per eseguire lo script VBS
       command =
-          'cscript ${tempVbsFile.path} -from "${fromAddress}" -to "${email}" -subject "Avvisio Importate:" -body "Documentazione in allegato" -attach "${filePath}"';
+          'cscript ${tempVbsFile.path} -from "${fromAddress}" -to "${email}" -subject "Invio Attestato di partecipazione" -body "Documentazione in allegato" -attach "${filePath}"';
     } else {
       File tempShFile = File(path.join(tempDirPath, 'send_email.sh'));
       await tempShFile.writeAsString(mailScript);
       command =
-          '${tempShFile.path} -from "$fromAddress" -to "$email" -subject "Avvisio Importate:" -body "Documentazione in allegato" -attach "$filePath"';
+          '${tempShFile.path} -from "$fromAddress" -to "$email" -subject "Invio Attestato di partecipazione" -body "Documentazione in allegato" -attach "$filePath"';
     }
     // Comando per eseguire lo script VBS
     appDebug('Comando: $command');
