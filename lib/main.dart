@@ -429,9 +429,12 @@ class PdfSplitterController extends GetxController {
             await Future.delayed(Duration(seconds: 10));
             message = 'Invio email a ${fields[i][5]} con file $filePath';
             appInfo(
-                'Invio email a ${fields[i][5]} con Oggetto ${fields[i][2]} e Corpo ${fields[i][2]} e con file $filePath');
-            await sendEmail(fields[i][5].toString(), fields[i][2].toString(),
-                fields[i][2].toString(), filePath);
+                'Invio email a ${fields[i][5]} con Oggetto ${fields[i][2]} e con file $filePath');
+            await sendEmail(
+                fields[i][5].toString(),
+                fields[i][2].toString(),
+                'Gentile ${fields[i][1]}, si trasmette in allegato quanto in oggetto.',
+                filePath);
             message = 'Attesa 10s post di invio';
             appInfo('Attesa 10s post di invio');
             await Future.delayed(Duration(seconds: 10));
