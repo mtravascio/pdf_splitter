@@ -1,16 +1,11 @@
 # pdf_splitter
 
-A new Flutter project.
+Multiplatform PDF Splitter with string search end email sending via Outlook/Linux/Mac
 
-## Getting Started
-
-This project is a starting point for a Flutter application.
-
-A few resources to get you started if this is your first Flutter project:
-
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+ID - Colonna (#1) = Numero Pagina dove cercare il nome (Stringa) nel file di pagina PDF
+Nome - Colonna (#2) = Nome con Eventuale cognome che viene ricercato nella pagina splittata ed estratta
+Description/Oggetto email - Colonna (#3) = Descrizione del nome file/Oggetto email
+Dir - Colonna (#4) = Directory creata in /Documenti/pdf_splitter/Dir per lo splitting delle singole pagine pdf
+SubDir - Colonna (#5) = SubDirectory creata in /Documenti/ pdf_splitter/Dir/SubDir per lo splitting delle singole pagine pdf
+email - Colonna (#6) = email di destinazione per l'invio in allegato del file splittato
+Intestazione Colonna (#6)[0] = from: email@dominio.it =indirizzo email dal quale vengono spedite le email con allegato il file splittato
