@@ -424,9 +424,17 @@ class PdfSplitterController extends GetxController {
 
           if (sendEmailAfterSplit.value) {
             // Invia l'email con il file PDF in allegato
+            message = 'Attesa 10s prima di invio';
+            appInfo('Attesa 10s prima di invio');
+            await Future.delayed(Duration(seconds: 10));
             message = 'Invio email a ${fields[i][5]} con file $filePath';
-            appInfo('Invio email a ${fields[i][5]} con file $filePath');
-            await sendEmail(fields[i][5].toString(), filePath);
+            appInfo(
+                'Invio email a ${fields[i][5]} con Oggetto ${fields[i][2]} e Corpo ${fields[i][2]} e con file $filePath');
+            await sendEmail(fields[i][5].toString(), fields[i][2].toString(),
+                fields[i][2].toString(), filePath);
+            message = 'Attesa 10s post di invio';
+            appInfo('Attesa 10s post di invio');
+            await Future.delayed(Duration(seconds: 10));
           }
         }
       }
@@ -441,7 +449,8 @@ class PdfSplitterController extends GetxController {
   }
 
   // Funzione per inviare un'email usando lo script VBS
-  Future<void> sendEmail(String email, String filePath) async {
+  Future<void> sendEmail(
+      String email, String subject, String body, String filePath) async {
     // Leggi lo script VBS dagli asset
     String vbsScript = await rootBundle.loadString('assets/send_mail.vbs');
     String mailScript = await rootBundle.loadString('assets/send_mail.sh');
@@ -456,12 +465,12 @@ class PdfSplitterController extends GetxController {
       await tempVbsFile.writeAsString(vbsScript);
       // Comando per eseguire lo script VBS
       command =
-          'cscript ${tempVbsFile.path} -from "${fromAddress}" -to "${email}" -subject "Invio Attestato di partecipazione" -body "Documentazione in allegato" -attach "${filePath}"';
+          'cscript ${tempVbsFile.path} -from "$fromAddress" -to "$email" -subject "$subject" -body "$body" -attach "$filePath"';
     } else {
       File tempShFile = File(path.join(tempDirPath, 'send_email.sh'));
       await tempShFile.writeAsString(mailScript);
       command =
-          '${tempShFile.path} -from "$fromAddress" -to "$email" -subject "Invio Attestato di partecipazione" -body "Documentazione in allegato" -attach "$filePath"';
+          '${tempShFile.path} -from "$fromAddress" -to "$email" -subject "$subject" -body "$body" -attach "$filePath"';
     }
     // Comando per eseguire lo script VBS
     appDebug('Comando: $command');
