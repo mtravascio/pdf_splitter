@@ -32,8 +32,8 @@ L'applicazione utilizza un file CSV per definire come il PDF di input debba esse
 
 È possibile scaricare l'ultima versione dell'applicazione per il proprio sistema operativo dalla pagina [**Releases**](https://github.com/mtravascio/pdf_splitter/releases/latest). Sono disponibili i seguenti formati:
 
-- **Windows**: `.msix`
-- **Linux**: `.AppImage`, `.deb`, `.flatpak`
+- **Windows**: `.msix`,`.exe`,`.zip`
+- **Linux**: `.rpm`, `.deb`, `.flatpak`,`.zip`
 - **macOS**: `.dmg`
 
 ## Dipendenze Principali
