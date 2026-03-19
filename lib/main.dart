@@ -75,20 +75,18 @@ class PdfSplitterController extends GetxController {
   }
 
   // Redirigi le chiamate a print e debugPrint ai metodi del LogController
-  appInfo(String msg) {
+  Future<void> appInfo(String msg) async {
     final logController = Get.find<LogController>();
-    logController.logInfo(msg); // Usa logInfo per i messaggi generali
+    await logController.logInfo(msg);
   }
 
-  appError(String msg) {
+  Future<void> appError(String msg) async {
     final logController = Get.find<LogController>();
-    logController.logError(msg); // Usa logDebug per i messaggi di errore
+    await logController.logError(msg);
   }
 
-  appDebug(String msg) {
-    //final logController = Get.find<LogController>();
-    //logController.logDebug(msg); // Usa logDebug per i messaggi di errore
-    print('DEBUG: $msg'); // Usa logDebug per i messaggi di errore
+  void appDebug(String msg) {
+    debugPrint('DEBUG: $msg');
   }
 
   // Seleziona il file CSV
@@ -120,7 +118,7 @@ class PdfSplitterController extends GetxController {
 
       if (fields.isEmpty || fields[0].length < 2) {
         message = 'CSV non valido - #,nome,descr,dir,subdir';
-        appError('CSV non valido - #,nome,descr,dir,subdir');
+        await appError('CSV non valido - #,nome,descr,dir,subdir');
         //appInfo('CSV non valido - #,nome,descr,dir,subdir');
         return;
       }
@@ -151,10 +149,10 @@ class PdfSplitterController extends GetxController {
         if (match != null) {
           fromAddress = match.group(0)!;
           message = 'Email di invio: $fromAddress';
-          appInfo('Email di invio: $fromAddress');
+          await appInfo('Email di invio: $fromAddress');
         } else {
           message = 'Email di invio non valida!';
-          appError('Email di invio non valida!');
+          await appError('Email di invio non valida!');
         }
         sendEmailAfterSplit.value = false; // Imposta su OFF precauzionalmente
         canEnableSwitchEmail.value = true; // Abilita lo switch
@@ -221,17 +219,17 @@ class PdfSplitterController extends GetxController {
   }
 
   //Da rivedere i messaggi di errore e di info
-  bool SearchName(String name, PdfDocument outPdf) {
+  Future<bool> SearchName(String name, PdfDocument outPdf) async {
     // Legge il file di testo
     String text = PdfTextExtractor(outPdf).extractText();
 
     List<String> nomeCognome = cercaOccorrenze(text, name);
 
     if (nomeCognome.isNotEmpty) {
-      appInfo('Nome $name [$nomeCognome] OK!');
+      await appInfo('Nome $name [$nomeCognome] OK!');
       return true;
     } else {
-      appError('Nome $name [$nomeCognome] Non TROVATO!');
+      await appError('Nome $name [$nomeCognome] Non TROVATO!');
       return false;
     }
   }
@@ -292,7 +290,7 @@ class PdfSplitterController extends GetxController {
     }
 
     try {
-      appInfo('<--------------SPLITTING---------------->');
+      await appInfo('<--------------SPLITTING---------------->');
       isProcessing.value = true;
 
       var d = FirstOccurrenceSettingsDetector(
@@ -305,7 +303,7 @@ class PdfSplitterController extends GetxController {
 
       if (fields.isEmpty || fields[0].length < 2) {
         message = 'CSV non valido - #,nome,descr,dir,subdir';
-        appError('CSV non valido - #,nome,descr,dir,subdir');
+        await appError('CSV non valido - #,nome,descr,dir,subdir');
         return;
       }
 /*
@@ -352,7 +350,7 @@ class PdfSplitterController extends GetxController {
       int pageCount = pdfDocument.pages.count;
       if (fileNames.length > pageCount) {
         message = "#pagine PDF < #file CVS !";
-        appError(
+        await appError(
             "#pagine PDF ($pageCount) < #file CSV (${fileNames.length.toString()})");
         return;
       }
@@ -375,11 +373,12 @@ class PdfSplitterController extends GetxController {
         //if (name != fileNames[i]) {
 
         //Cerca il nome dell'utente all'interno del filePdf
-        if (!SearchName(fileNames[i], outPdf)) {
+        bool nameFound = await SearchName(fileNames[i], outPdf);
+        if (!nameFound) {
           message = 'Pagina: ${pageNumbers[i]} - ${fileNames[i]} ERROR! ';
-          appError('${pageNumbers[i]} - ${fileNames[i]} Errore!');
+          await appError('${pageNumbers[i]} - ${fileNames[i]} Errore!');
         } else {
-          appInfo('${pageNumbers[i]} - ${fileNames[i]}  OK!');
+          await appInfo('${pageNumbers[i]} - ${fileNames[i]}  OK!');
 
           message = 'Pagina ${pageNumbers[i]} - ${fileNames[i]}  OK!';
 
@@ -422,33 +421,33 @@ class PdfSplitterController extends GetxController {
           final filePath = path.join(newDirPath, outputFileName);
 
           if (splitIntoSubdir.value) {
-            String subdirName = path.basenameWithoutExtension(outputFileName);
+            String subdirName = fileNames[i];
             String subdirPath = path.join(newDirPath, subdirName);
             Directory subDir = Directory(subdirPath);
             if (!await subDir.exists()) {
               await subDir.create(recursive: true);
               appDebug('Subdirectory creata: $subdirPath');
             }
-            String newFilePath = path.join(subdirPath, '$subdirName.pdf');
+            String newFilePath = path.join(subdirPath, outputFileName);
             final file = File(filePath);
             await file.writeAsBytes(await outPdf.save());
             await file.rename(newFilePath);
-            appInfo('File salvato in subdirectory: $newFilePath');
+            await appInfo('File salvato in subdirectory: $newFilePath');
           } else {
             // Salva ogni singola pagina come file PDF
             final file = File(filePath);
             await file.writeAsBytes(await outPdf.save());
-            appInfo('File salvato: $filePath');
+            await appInfo('File salvato: $filePath');
           }
           outPdf.dispose();
 
           if (sendEmailAfterSplit.value) {
             // Invia l'email con il file PDF in allegato
             message = 'Attesa 10s prima di invio';
-            appInfo('Attesa 10s prima di invio');
+            await appInfo('Attesa 10s prima di invio');
             await Future.delayed(Duration(seconds: 10));
             message = 'Invio email a ${fields[i][5]} con file $filePath';
-            appInfo(
+            await appInfo(
                 'Invio email a ${fields[i][5]} con Oggetto ${fields[i][2]} e con file $filePath');
             await sendEmail(
                 fields[i][5].toString(),
@@ -456,16 +455,16 @@ class PdfSplitterController extends GetxController {
                 'Gentile ${fields[i][1]}, si trasmette in allegato quanto in oggetto.',
                 filePath);
             message = 'Attesa 10s post di invio';
-            appInfo('Attesa 10s post di invio');
+            await appInfo('Attesa 10s post di invio');
             await Future.delayed(Duration(seconds: 10));
           }
         }
       }
       message = 'PDF splittati e rinominati';
-      appInfo('PDF splittati e rinominati');
+      await appInfo('PDF splittati e rinominati');
     } catch (e) {
       message = 'Errore durante il processamento: $e';
-      appError('Errore durante il processamento: $e');
+      await appError('Errore durante il processamento: $e');
     } finally {
       isProcessing.value = false;
     }
@@ -517,9 +516,9 @@ class PdfSplitterController extends GetxController {
 
     if (result.exitCode == 0) {
       message = 'Email inviata con successo a $email!';
-      appInfo("Email inviata con successo a $email");
+      await appInfo("Email inviata con successo a $email");
     } else {
-      appError("Errore durante l'invio dell'email: ${result.stderr}");
+      await appError("Errore durante l'invio dell'email: ${result.stderr}");
     }
   }
 }
