@@ -20,7 +20,7 @@ void main() {
   WidgetsFlutterBinding.ensureInitialized();
   //DesktopWindow.setMinWindowSize(Size(300, 300)); // Imposta la dimensione minima della finestra
   //DesktopWindow.setMaxWindowSize(Size(800, 800)); // Imposta la dimensione massima della finestra
-  DesktopWindow.setWindowSize(Size(480, 1000));
+  DesktopWindow.setWindowSize(Size(520, 520));
   //DesktopWindow.setBorders(false);
   runApp(MyApp());
 }
@@ -39,6 +39,7 @@ class MyApp extends StatelessWidget {
 class PdfSplitterController extends GetxController {
   var csvFilePath = Rx<String?>(null);
   var pdfFilePath = Rx<String?>(null);
+  var outputDirectory = Rx<String>('');
   var isProcessing = false.obs;
   var _message = ''.obs;
   var appName = ''.obs;
@@ -52,6 +53,31 @@ class PdfSplitterController extends GetxController {
   var splitIntoSubdir = false.obs;
   var canEnableSplitIntoSubdir = false.obs;
   String fromAddress = '';
+
+  @override
+  void onInit() {
+    super.onInit();
+    _initializeOutputDirectory();
+  }
+
+  Future<void> _initializeOutputDirectory() async {
+    final defaultPath = await getDefaultOutputDirectory();
+    outputDirectory.value = defaultPath;
+  }
+
+  Future<String> getDefaultOutputDirectory() async {
+    final directory = await getApplicationDocumentsDirectory();
+    String documentsPath =
+        directory.path.replaceAll('Library/Containers', 'Documents');
+    return path.join(documentsPath, 'pdf_splitter');
+  }
+
+  Future<void> pickOutputDirectory() async {
+    String? result = await FilePicker.platform.getDirectoryPath();
+    if (result != null) {
+      outputDirectory.value = result;
+    }
+  }
 
   // Getter per ottenere il valore del messaggio
   String get message => _message.value;
@@ -355,11 +381,8 @@ class PdfSplitterController extends GetxController {
         return;
       }
 
-      // Preleva la directory Documents
-      Directory appDocumentsDir = await getApplicationDocumentsDirectory();
-      // Evita la sandbox MacOS
-      String documentsPath =
-          appDocumentsDir.path.replaceAll('Library/Containers', 'Documents');
+      // Preleva la directory di output selezionata
+      String documentsPath = outputDirectory.value;
 
       // Suddividi il PDF in singole pagine creando le directory di destinazione
       for (int i = 0; i < fileNames.length; i++) {
@@ -382,7 +405,7 @@ class PdfSplitterController extends GetxController {
 
           message = 'Pagina ${pageNumbers[i]} - ${fileNames[i]}  OK!';
 
-          String newDirPath = path.join(documentsPath, 'pdf_splitter');
+          String newDirPath = documentsPath;
 
           if (createDirectories.value) {
             // Se la creazione delle directory è abilitata, aggiungi dirNames e subdirNames
@@ -406,8 +429,7 @@ class PdfSplitterController extends GetxController {
           } else {
             appDebug(
                 'Creazione directory disabilitata. I file verranno salvati nella directory principale.');
-            newDirPath = path.join(documentsPath,
-                'pdf_splitter'); // Imposta la directory principale
+            newDirPath = documentsPath;
           }
 
           // Crea un nome di file per ciascun PDF
@@ -617,48 +639,76 @@ class PdfSplitter extends StatelessWidget {
     return Card(
       elevation: 2,
       child: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(12.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
                 Icon(Icons.folder_open,
-                    color: Colors.deepPurpleAccent, size: 20),
+                    color: Colors.deepPurpleAccent, size: 18),
                 const SizedBox(width: 8),
                 Text(
                   'Selezione File',
                   style: TextStyle(
-                    fontSize: 16,
+                    fontSize: 14,
                     fontWeight: FontWeight.bold,
                     color: Colors.deepPurpleAccent.shade700,
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 12),
-            _buildFileButton(
-              icon: Icons.description,
-              label: 'Seleziona CSV',
-              isCsv: true,
-            ),
             const SizedBox(height: 8),
-            Obx(() => _buildFilePath(
-                  label: 'CSV',
-                  path: controller.csvFilePath.value,
-                  icon: Icons.table_chart,
-                )),
-            const SizedBox(height: 12),
-            _buildFileButton(
-              icon: Icons.picture_as_pdf,
-              label: 'Seleziona PDF',
-              isCsv: false,
+            // Bottoni CSV e PDF sulla stessa riga
+            Row(
+              children: [
+                Expanded(
+                  child: _buildFileButton(
+                    icon: Icons.description,
+                    label: 'CSV',
+                    isCsv: true,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _buildFileButton(
+                    icon: Icons.picture_as_pdf,
+                    label: 'PDF',
+                    isCsv: false,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _buildOutputDirectoryButton(),
+                ),
+              ],
             ),
-            const SizedBox(height: 8),
-            Obx(() => _buildFilePath(
-                  label: 'PDF',
-                  path: controller.pdfFilePath.value,
-                  icon: Icons.auto_stories,
+            const SizedBox(height: 6),
+            // Path display su due colonne
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Obx(() => _buildFilePathCompact(
+                        label: 'CSV',
+                        path: controller.csvFilePath.value,
+                        icon: Icons.table_chart,
+                      )),
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Obx(() => _buildFilePathCompact(
+                        label: 'PDF',
+                        path: controller.pdfFilePath.value,
+                        icon: Icons.auto_stories,
+                      )),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            // Output directory path
+            Obx(() => _buildOutputPathCompact(
+                  path: controller.outputDirectory.value,
                 )),
           ],
         ),
@@ -717,78 +767,217 @@ class PdfSplitter extends StatelessWidget {
     );
   }
 
+  Widget _buildOutputPath({
+    required String path,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey.shade300),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.folder, size: 20, color: Colors.grey.shade600),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              path.isEmpty ? 'Nessuna directory selezionata' : path,
+              style: TextStyle(
+                color: path.isEmpty ? Colors.grey.shade500 : Colors.black87,
+                fontSize: 13,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOutputPathCompact({
+    required String path,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: Colors.grey.shade300),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.folder, size: 14, color: Colors.grey.shade600),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              path.isEmpty ? 'Nessuna directory selezionata' : path,
+              style: TextStyle(
+                color: path.isEmpty ? Colors.grey.shade500 : Colors.black87,
+                fontSize: 11,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFilePathCompact({
+    required String label,
+    required String? path,
+    required IconData icon,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: Colors.grey.shade300),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 12, color: Colors.grey.shade600),
+              const SizedBox(width: 4),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey.shade600,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 2),
+          Text(
+            path ?? 'Nessun file selezionato',
+            style: TextStyle(
+              color: path != null ? Colors.black87 : Colors.grey.shade500,
+              fontSize: 10,
+            ),
+            overflow: TextOverflow.ellipsis,
+            maxLines: 1,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOutputDirectoryButton() {
+    return Obx(() => ElevatedButton.icon(
+          onPressed: controller.isProcessing.value
+              ? null
+              : controller.pickOutputDirectory,
+          icon: Icon(Icons.folder_open, size: 16),
+          label: Text('Output', style: TextStyle(fontSize: 12)),
+          style: ElevatedButton.styleFrom(
+            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+            backgroundColor: Colors.blue.shade700,
+            foregroundColor: Colors.white,
+          ),
+        ));
+  }
+
   Widget _buildOptionsCard() {
     return Card(
       elevation: 2,
       child: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(12.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                Icon(Icons.settings, color: Colors.deepPurpleAccent, size: 20),
+                Icon(Icons.settings, color: Colors.deepPurpleAccent, size: 18),
                 const SizedBox(width: 8),
                 Text(
                   'Opzioni',
                   style: TextStyle(
-                    fontSize: 16,
+                    fontSize: 14,
                     fontWeight: FontWeight.bold,
                     color: Colors.deepPurpleAccent.shade700,
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 8),
-            Obx(() => _buildSwitch(
-                  title: 'Invia email dopo lo split',
-                  subtitle: controller.canEnableSwitchEmail.value
-                      ? 'La colonna email (#6) è presente'
-                      : "La colonna 'email' (#6) non è presente nel CSV",
-                  value: controller.sendEmailAfterSplit.value,
-                  enabled: controller.canEnableSwitchEmail.value,
-                  onChanged: (value) =>
-                      controller.sendEmailAfterSplit.value = value,
-                  icon: Icons.email,
-                )),
-            const Divider(height: 16),
-            Obx(() => _buildSwitch(
-                  title: "Usa la 'description' nel nomefile",
-                  subtitle: controller.canEnableSwitchDescr.value
-                      ? "La colonna description (#3) è presente"
-                      : "La colonna 'description' (#3) non è presente nel CSV",
-                  value: controller.useDescription.value,
-                  enabled: controller.canEnableSwitchDescr.value,
-                  onChanged: (value) => controller.useDescription.value = value,
-                  icon: Icons.text_fields,
-                )),
-            const Divider(height: 16),
-            Obx(() => _buildSwitch(
-                  title: "Crea 'directory' e 'sottodirectory'",
-                  subtitle: controller.canEnableSwitchDir.value
-                      ? "Le colonne directory (#4) e subdirectory (#5) sono presenti"
-                      : "Le colonne 'directory' (#4) e 'subdirectory' (#5) non sono presenti nel CSV",
-                  value: controller.createDirectories.value,
-                  enabled: controller.canEnableSwitchDir.value,
-                  onChanged: (value) =>
-                      controller.createDirectories.value = value,
-                  icon: Icons.folder,
-                )),
-            const Divider(height: 16),
-            Obx(() => _buildSwitch(
-                  title: 'Split in sottodirectory che hanno il nome del file',
-                  subtitle: controller.canEnableSplitIntoSubdir.value
-                      ? 'Crea una directory per ogni file PDF'
-                      : 'Seleziona prima CSV e PDF',
-                  value: controller.splitIntoSubdir.value,
-                  enabled: controller.canEnableSplitIntoSubdir.value,
-                  onChanged: (value) =>
-                      controller.splitIntoSubdir.value = value,
-                  icon: Icons.create_new_folder,
+            const SizedBox(height: 6),
+            // Due switch per riga
+            Obx(() => Wrap(
+                  spacing: 8,
+                  runSpacing: 4,
+                  children: [
+                    _buildSwitchCompact(
+                      title: 'Email',
+                      value: controller.sendEmailAfterSplit.value,
+                      enabled: controller.canEnableSwitchEmail.value,
+                      onChanged: (value) =>
+                          controller.sendEmailAfterSplit.value = value,
+                      icon: Icons.email,
+                    ),
+                    _buildSwitchCompact(
+                      title: 'Description',
+                      value: controller.useDescription.value,
+                      enabled: controller.canEnableSwitchDescr.value,
+                      onChanged: (value) =>
+                          controller.useDescription.value = value,
+                      icon: Icons.text_fields,
+                    ),
+                    _buildSwitchCompact(
+                      title: 'Directory',
+                      value: controller.createDirectories.value,
+                      enabled: controller.canEnableSwitchDir.value,
+                      onChanged: (value) =>
+                          controller.createDirectories.value = value,
+                      icon: Icons.folder,
+                    ),
+                    _buildSwitchCompact(
+                      title: 'Subdir',
+                      value: controller.splitIntoSubdir.value,
+                      enabled: controller.canEnableSplitIntoSubdir.value,
+                      onChanged: (value) =>
+                          controller.splitIntoSubdir.value = value,
+                      icon: Icons.create_new_folder,
+                    ),
+                  ],
                 )),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildSwitchCompact({
+    required String title,
+    required bool value,
+    required bool enabled,
+    required ValueChanged<bool> onChanged,
+    required IconData icon,
+  }) {
+    return FilterChip(
+      selected: value,
+      onSelected: enabled ? onChanged : null,
+      avatar: Icon(
+        icon,
+        size: 16,
+        color: enabled ? Colors.deepPurpleAccent : Colors.grey,
+      ),
+      label: Text(
+        title,
+        style: TextStyle(
+          fontSize: 11,
+          color: enabled ? Colors.black87 : Colors.grey,
+        ),
+      ),
+      selectedColor: Colors.deepPurpleAccent.shade100,
+      checkmarkColor: Colors.deepPurpleAccent,
+      padding: EdgeInsets.symmetric(horizontal: 4),
+      visualDensity: VisualDensity.compact,
     );
   }
 
@@ -837,28 +1026,28 @@ class PdfSplitter extends StatelessWidget {
       elevation: 3,
       color: Colors.deepPurpleAccent.shade700,
       child: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         child: Obx(() => ElevatedButton.icon(
               onPressed:
                   controller.isProcessing.value ? null : controller.splitPdf,
               icon: controller.isProcessing.value
                   ? SizedBox(
-                      width: 20,
-                      height: 20,
+                      width: 16,
+                      height: 16,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
                         color: Colors.white,
                       ),
                     )
-                  : Icon(Icons.play_arrow, size: 24),
+                  : Icon(Icons.play_arrow, size: 20),
               label: Text(
                 controller.isProcessing.value
-                    ? 'Elaborazione in corso...'
-                    : 'Splitta e Rinomina PDF',
-                style: const TextStyle(fontSize: 16),
+                    ? 'Elaborazione...'
+                    : 'Splitta PDF',
+                style: const TextStyle(fontSize: 14),
               ),
               style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 16),
+                padding: const EdgeInsets.symmetric(vertical: 12),
                 backgroundColor: Colors.white,
                 foregroundColor: Colors.deepPurpleAccent.shade700,
               ),
@@ -871,68 +1060,66 @@ class PdfSplitter extends StatelessWidget {
     return Card(
       elevation: 2,
       child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        padding: const EdgeInsets.all(10.0),
+        child: Row(
           children: [
-            Row(
-              children: [
-                Icon(Icons.info_outline,
-                    color: Colors.deepPurpleAccent, size: 20),
-                const SizedBox(width: 8),
-                Text(
-                  'Stato',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.deepPurpleAccent.shade700,
-                  ),
-                ),
-              ],
+            Icon(Icons.info_outline, color: Colors.deepPurpleAccent, size: 18),
+            const SizedBox(width: 8),
+            Text(
+              'Stato:',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: Colors.deepPurpleAccent.shade700,
+              ),
             ),
-            const SizedBox(height: 12),
-            Obx(() => Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: controller.isProcessing.value
-                        ? Colors.blue.shade50
-                        : Colors.grey.shade100,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
+            const SizedBox(width: 8),
+            Expanded(
+              child: Obx(() => Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                    decoration: BoxDecoration(
                       color: controller.isProcessing.value
-                          ? Colors.blue.shade200
-                          : Colors.grey.shade300,
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      if (controller.isProcessing.value) ...[
-                        SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.blue.shade700,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                      ],
-                      Expanded(
-                        child: Text(
-                          controller.message.isEmpty
-                              ? 'Pronto per elaborare...'
-                              : controller.message,
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: controller.isProcessing.value
-                                ? Colors.blue.shade700
-                                : Colors.black87,
-                          ),
-                        ),
+                          ? Colors.blue.shade50
+                          : Colors.grey.shade100,
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(
+                        color: controller.isProcessing.value
+                            ? Colors.blue.shade200
+                            : Colors.grey.shade300,
                       ),
-                    ],
-                  ),
-                )),
+                    ),
+                    child: Row(
+                      children: [
+                        if (controller.isProcessing.value) ...[
+                          SizedBox(
+                            width: 12,
+                            height: 12,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.blue.shade700,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                        ],
+                        Expanded(
+                          child: Text(
+                            controller.message.isEmpty
+                                ? 'Pronto...'
+                                : controller.message,
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: controller.isProcessing.value
+                                  ? Colors.blue.shade700
+                                  : Colors.black87,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )),
+            ),
           ],
         ),
       ),
@@ -963,6 +1150,8 @@ class PdfSplitter extends StatelessWidget {
                   'Scegli il file CSV contenente i dati per la divisione. Vengono rilevate automaticamente le colonne presenti.'),
               _buildHelpSection('Seleziona PDF',
                   'Scegli il file PDF da dividere in singole pagine.'),
+              _buildHelpSection('Seleziona Directory Output',
+                  'Scegli la directory dove verranno salvati i file PDF splittati. Default: Documents/pdf_splitter/'),
               _buildHelpSection('Opzioni',
                   '- Invia email: Invia automaticamente ogni PDF splittato via email (richiede colonna #6)\n- Usa description: Aggiunge la descrizione al nome del file (richiede colonna #3)\n- Crea directory: Organizza i file in cartelle basate su directory/subdirectory (richiede colonne #4 e #5)\n- Split in sottodirectory: Crea una directory separata che ha il nome del file per ogni file PDF con il file pdf splittato all\'interno'),
               _buildHelpSection('Splitta PDF',
