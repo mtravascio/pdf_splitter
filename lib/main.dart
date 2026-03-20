@@ -41,6 +41,8 @@ class PdfSplitterController extends GetxController {
   var pdfFilePath = Rx<String?>(null);
   var outputDirectory = Rx<String>('');
   var isProcessing = false.obs;
+  var isPaused = false.obs;
+  var isStopped = false.obs;
   var _message = ''.obs;
   var appName = ''.obs;
   var version = ''.obs;
@@ -53,6 +55,9 @@ class PdfSplitterController extends GetxController {
   var splitIntoSubdir = false.obs;
   var canEnableSplitIntoSubdir = false.obs;
   String fromAddress = '';
+
+  // Stato del processo: 'idle', 'running', 'paused', 'stopped'
+  var processState = 'idle'.obs;
 
   @override
   void onInit() {
@@ -315,13 +320,23 @@ class PdfSplitterController extends GetxController {
       return;
     }
 
+    // Avvia il processo
+    if (processState.value == 'idle') {
+      processState.value = 'running';
+      isProcessing.value = true;
+      isPaused.value = false;
+      isStopped.value = false;
+      await _executeSplit();
+    }
+  }
+
+  Future<void> _executeSplit() async {
     try {
       await appInfo('<--------------SPLITTING---------------->');
-      isProcessing.value = true;
 
       var d = FirstOccurrenceSettingsDetector(
           fieldDelimiters: [';', ','],
-          eols: ['\n', '\r\n']); // Leggi il file CSV
+          eols: ['\n', '\r\n']);
       final csv = File(csvFilePath.value!).readAsStringSync();
       List<List<dynamic>> fields = CsvToListConverter(
               csvSettingsDetector: d, convertEmptyTo: EmptyValue.NULL)
@@ -330,23 +345,12 @@ class PdfSplitterController extends GetxController {
       if (fields.isEmpty || fields[0].length < 2) {
         message = 'CSV non valido - #,nome,descr,dir,subdir';
         await appError('CSV non valido - #,nome,descr,dir,subdir');
+        _resetProcessState();
         return;
       }
-/*
-      // Verifica se la colonna 4 (indice 3) e la colonna 5 (indice 4) sono presenti
-      if (fields.isNotEmpty && fields[0].length >= 5) {
-        // Se entrambe le colonne 4 e 5 esistono, abilitare lo switch
-        createDirectories.value = true; // Imposta su ON
-        canEnableSwitch.value = true; // Abilita lo switch
-      } else {
-        // Se una delle colonne manca, disabilitare lo switch
-        createDirectories.value = false; // Imposta su OFF
-        canEnableSwitch.value = false; // Disabilita lo switch
-      }
-*/
+
       // Filtra le righe per mantenere solo quelle che iniziano con un numero
       fields = fields.where((row) {
-        // Verifica se il primo campo è un numero
         return row.isNotEmpty && isOK(row[0]);
       }).toList();
 
@@ -363,61 +367,64 @@ class PdfSplitterController extends GetxController {
       List<String> dirNames = [];
       List<String> subdirNames = [];
 
-      // Se l'opzione di creare directory è attiva, estrai anche dirNames e subdirNames
       if (createDirectories.value) {
         dirNames = fields.map((row) => row[3].toString().trim()).toList();
         subdirNames = fields.map((row) => row[4].toString().trim()).toList();
       }
 
-      // Carica il PDF originale
       final pdfDocument = await _loadPdfDocument(pdfFilePath.value!);
 
-      // Controlla se il numero delle pagine corrisponde ai nomi
       int pageCount = pdfDocument.pages.count;
       if (fileNames.length > pageCount) {
         message = "#pagine PDF < #file CVS !";
         await appError(
             "#pagine PDF ($pageCount) < #file CSV (${fileNames.length.toString()})");
+        _resetProcessState();
         return;
       }
 
-      // Preleva la directory di output selezionata
       String documentsPath = outputDirectory.value;
 
-      // Suddividi il PDF in singole pagine creando le directory di destinazione
       for (int i = 0; i < fileNames.length; i++) {
-        //Carica il file pdf sempre completo
+        // Controlla se fermato
+        if (isStopped.value) {
+          message = 'Processo fermato';
+          await appInfo('Processo fermato dall\'utente');
+          break;
+        }
+
+        // Controlla se in pausa e aspetta
+        while (isPaused.value && !isStopped.value) {
+          await Future.delayed(Duration(milliseconds: 100));
+        }
+
+        // Se è stato fermato durante la pausa, esci
+        if (isStopped.value) {
+          message = 'Processo fermato';
+          await appInfo('Processo fermato dall\'utente');
+          break;
+        }
+
+        // Esegui lo splitting per questa pagina
         PdfDocument inPdf = await _loadPdfDocument(pdfFilePath.value!);
-        //Estrae la pagina i dal file pdf
         PdfDocument outPdf = extractPage(pageNumbers[i] - 1, inPdf);
 
-        //Estrae il campo nome all'interno del file PDF
-        //String name = extractName(outPdf);
-        //if (name != fileNames[i]) {
-
-        //Cerca il nome dell'utente all'interno del filePdf
         bool nameFound = await SearchName(fileNames[i], outPdf);
         if (!nameFound) {
           message = 'Pagina: ${pageNumbers[i]} - ${fileNames[i]} ERROR! ';
           await appError('${pageNumbers[i]} - ${fileNames[i]} Errore!');
         } else {
           await appInfo('${pageNumbers[i]} - ${fileNames[i]}  OK!');
-
           message = 'Pagina ${pageNumbers[i]} - ${fileNames[i]}  OK!';
 
           String newDirPath = documentsPath;
 
           if (createDirectories.value) {
-            // Se la creazione delle directory è abilitata, aggiungi dirNames e subdirNames
-            newDirPath =
-                path.joinAll([newDirPath, dirNames[i], subdirNames[i]]);
+            newDirPath = path.joinAll([newDirPath, dirNames[i], subdirNames[i]]);
           } else {
-            // Se la creazione delle directory non è abilitata, usa la directory principale
-            appDebug(
-                'Creazione directory disabilitata. I file verranno salvati nella directory principale.');
+            appDebug('Creazione directory disabilitata.');
           }
 
-          // Crea la directory se non esiste
           if (createDirectories.value) {
             Directory outputDir = Directory(newDirPath);
             if (!await outputDir.exists()) {
@@ -427,12 +434,9 @@ class PdfSplitterController extends GetxController {
               appDebug('La directory $newDirPath esiste già.');
             }
           } else {
-            appDebug(
-                'Creazione directory disabilitata. I file verranno salvati nella directory principale.');
             newDirPath = documentsPath;
           }
 
-          // Crea un nome di file per ciascun PDF
           String outputFileName = '';
           if (useDescription.value) {
             outputFileName = '${fileNames[i]}_${descNames[i]}.pdf';
@@ -456,7 +460,6 @@ class PdfSplitterController extends GetxController {
             await file.rename(newFilePath);
             await appInfo('File salvato in subdirectory: $newFilePath');
           } else {
-            // Salva ogni singola pagina come file PDF
             final file = File(filePath);
             await file.writeAsBytes(await outPdf.save());
             await appInfo('File salvato: $filePath');
@@ -464,11 +467,10 @@ class PdfSplitterController extends GetxController {
           outPdf.dispose();
 
           if (sendEmailAfterSplit.value) {
-            // Invia l'email con il file PDF in allegato
             message = 'Attesa 10s prima di invio';
             await appInfo('Attesa 10s prima di invio');
             await Future.delayed(Duration(seconds: 10));
-            message = 'Invio email a ${fields[i][5]} con file $filePath';
+            message = 'Invio email a ${fields[i][5]}';
             await appInfo(
                 'Invio email a ${fields[i][5]} con Oggetto ${fields[i][2]} e con file $filePath');
             await sendEmail(
@@ -476,20 +478,58 @@ class PdfSplitterController extends GetxController {
                 fields[i][2].toString(),
                 'Gentile ${fields[i][1]}, si trasmette in allegato quanto in oggetto.',
                 filePath);
-            message = 'Attesa 10s post di invio';
-            await appInfo('Attesa 10s post di invio');
+            message = 'Attesa 10s post invio';
+            await appInfo('Attesa 10s post invio');
             await Future.delayed(Duration(seconds: 10));
           }
         }
       }
-      message = 'PDF splittati e rinominati';
-      await appInfo('PDF splittati e rinominati');
+
+      if (!isStopped.value) {
+        message = 'PDF splittati e rinominati';
+        await appInfo('PDF splittati e rinominati');
+      }
     } catch (e) {
-      message = 'Errore durante il processamento: $e';
+      message = 'Errore: $e';
       await appError('Errore durante il processamento: $e');
     } finally {
-      isProcessing.value = false;
+      _resetProcessState();
     }
+  }
+
+  void pauseSplit() {
+    if (processState.value == 'running') {
+      isPaused.value = true;
+      processState.value = 'paused';
+      message = 'In pausa...';
+      appInfo('Processo messo in pausa');
+    }
+  }
+
+  void resumeSplit() {
+    if (processState.value == 'paused') {
+      isPaused.value = false;
+      processState.value = 'running';
+      message = 'Riprendo...';
+      appInfo('Processo ripreso');
+    }
+  }
+
+  void stopSplit() {
+    if (processState.value == 'running' || processState.value == 'paused') {
+      isStopped.value = true;
+      isPaused.value = false;
+      processState.value = 'stopped';
+      message = 'Fermo il processo...';
+      appInfo('Processo fermato dall\'utente');
+    }
+  }
+
+  void _resetProcessState() {
+    isProcessing.value = false;
+    isPaused.value = false;
+    isStopped.value = false;
+    processState.value = 'idle';
   }
 
   // Funzione per inviare un'email usando lo script VBS
@@ -1026,32 +1066,82 @@ class PdfSplitter extends StatelessWidget {
       elevation: 3,
       color: Colors.deepPurpleAccent.shade700,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        child: Obx(() => ElevatedButton.icon(
-              onPressed:
-                  controller.isProcessing.value ? null : controller.splitPdf,
-              icon: controller.isProcessing.value
-                  ? SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    )
-                  : Icon(Icons.play_arrow, size: 20),
-              label: Text(
-                controller.isProcessing.value
-                    ? 'Elaborazione...'
-                    : 'Splitta PDF',
-                style: const TextStyle(fontSize: 14),
-              ),
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                backgroundColor: Colors.white,
-                foregroundColor: Colors.deepPurpleAccent.shade700,
-              ),
-            )),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Obx(() {
+          final state = controller.processState.value;
+          return Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (state == 'idle') ...[
+                ElevatedButton.icon(
+                  onPressed: controller.splitPdf,
+                  icon: Icon(Icons.play_arrow, size: 18),
+                  label: Text('Splitta PDF', style: TextStyle(fontSize: 13)),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
+                    backgroundColor: Colors.white,
+                    foregroundColor: Colors.deepPurpleAccent.shade700,
+                  ),
+                ),
+              ] else if (state == 'running') ...[
+                ElevatedButton.icon(
+                  onPressed: controller.pauseSplit,
+                  icon: Icon(Icons.pause, size: 18),
+                  label: Text('Pausa', style: TextStyle(fontSize: 12)),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                    backgroundColor: Colors.orange.shade300,
+                    foregroundColor: Colors.deepPurpleAccent.shade700,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                ElevatedButton.icon(
+                  onPressed: controller.stopSplit,
+                  icon: Icon(Icons.stop, size: 18),
+                  label: Text('Stop', style: TextStyle(fontSize: 12)),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                    backgroundColor: Colors.red.shade300,
+                    foregroundColor: Colors.deepPurpleAccent.shade700,
+                  ),
+                ),
+              ] else if (state == 'paused') ...[
+                ElevatedButton.icon(
+                  onPressed: controller.resumeSplit,
+                  icon: Icon(Icons.play_arrow, size: 18),
+                  label: Text('Riprendi', style: TextStyle(fontSize: 12)),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                    backgroundColor: Colors.green.shade300,
+                    foregroundColor: Colors.deepPurpleAccent.shade700,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                ElevatedButton.icon(
+                  onPressed: controller.stopSplit,
+                  icon: Icon(Icons.stop, size: 18),
+                  label: Text('Stop', style: TextStyle(fontSize: 12)),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                    backgroundColor: Colors.red.shade300,
+                    foregroundColor: Colors.deepPurpleAccent.shade700,
+                  ),
+                ),
+              ] else if (state == 'stopped') ...[
+                ElevatedButton.icon(
+                  onPressed: controller.splitPdf,
+                  icon: Icon(Icons.replay, size: 18),
+                  label: Text('Riapri', style: TextStyle(fontSize: 12)),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                    backgroundColor: Colors.white,
+                    foregroundColor: Colors.deepPurpleAccent.shade700,
+                  ),
+                ),
+              ],
+            ],
+          );
+        }),
       ),
     );
   }
@@ -1155,7 +1245,7 @@ class PdfSplitter extends StatelessWidget {
               _buildHelpSection('Opzioni',
                   '- Invia email: Invia automaticamente ogni PDF splittato via email (richiede colonna #6)\n- Usa description: Aggiunge la descrizione al nome del file (richiede colonna #3)\n- Crea directory: Organizza i file in cartelle basate su directory/subdirectory (richiede colonne #4 e #5)\n- Split in sottodirectory: Crea una directory separata che ha il nome del file per ogni file PDF con il file pdf splittato all\'interno'),
               _buildHelpSection('Splitta PDF',
-                  'Avvia il processo di divisione. Ogni pagina viene salvata come file separato e verificata per il nome.'),
+                  'Avvia il processo di divisione. Durante l\'esecuzione puoi mettere in pausa (Pausa), riprendere (Riprendi) o fermare (Stop) il processo.'),
               _buildHelpSection('Nota',
                   'Le opzioni vengono abilitate automaticamente in base alle colonne presenti nel file CSV selezionato.'),
             ],
