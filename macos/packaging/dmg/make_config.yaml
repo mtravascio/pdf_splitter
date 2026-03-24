@@ -8,3 +8,8 @@ contents:
     y: 344
     type: file
     path: pdf_splitter.app
+code-sign:
+#  signing-identity: "Apple Distribution: Massimo Travascio (DX92KL7HCY)"
+  signing-identity: "Developer ID Application: Massimo Travascio (DX92KL7HCY)"
+
+#security find-identity -p codesigning -v 
