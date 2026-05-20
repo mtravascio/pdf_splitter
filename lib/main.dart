@@ -49,12 +49,14 @@ class PdfSplitterController extends GetxController {
   var useDescription = false.obs;
   var createDirectories = true.obs;
   var sendEmailAfterSplit = false.obs;
+  var emailFrom = Rx<String>('');
+  var emailSubject = Rx<String>('');
+  var emailBody = Rx<String>('');
   var canEnableSwitchDir = false.obs;
   var canEnableSwitchDescr = false.obs;
   var canEnableSwitchEmail = false.obs;
   var splitIntoSubdir = false.obs;
   var canEnableSplitIntoSubdir = false.obs;
-  String fromAddress = '';
 
   // Stato del processo: 'idle', 'running', 'paused', 'stopped'
   var processState = 'idle'.obs;
@@ -170,27 +172,11 @@ class PdfSplitterController extends GetxController {
         canEnableSwitchDir.value = false; // Disabilita lo switch
         canEnableSwitchDescr.value = false; // Disabilita lo switch
       }
-      if (fields.isNotEmpty &&
-          fields[0].length >= 6 &&
-          fields[0][5].toString().contains(RegExp(
-              r'(?<=from:\s+)([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})'))) {
-        RegExp emailRegExp = RegExp(
-            r'(?<=from:\s+)([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})');
-        var match = emailRegExp.firstMatch(fields[0][5].toString());
-        if (match != null) {
-          fromAddress = match.group(0)!;
-          message = 'Email di invio: $fromAddress';
-          await appInfo('Email di invio: $fromAddress');
-        } else {
-          message = 'Email di invio non valida!';
-          await appError('Email di invio non valida!');
-        }
-        sendEmailAfterSplit.value = false; // Imposta su OFF precauzionalmente
-        canEnableSwitchEmail.value = true; // Abilita lo switch
+      if (fields.isNotEmpty && fields[0].length >= 6) {
+        canEnableSwitchEmail.value = true;
       } else {
-        // Se una delle colonne manca, disabilitare lo switch
-        sendEmailAfterSplit.value = false; // Imposta su OFF
-        canEnableSwitchEmail.value = false; // Disabilita lo switch
+        sendEmailAfterSplit.value = false;
+        canEnableSwitchEmail.value = false;
       }
     }
   }
@@ -353,8 +339,6 @@ class PdfSplitterController extends GetxController {
       fields = fields.where((row) {
         return row.isNotEmpty && isOK(row[0]);
       }).toList();
-
-      fields.removeWhere((row) => row.contains(null));
       List<int> pageNumbers = fields
           .map((row) => int.tryParse(row[0].toString().trim()) ?? 0)
           .toList();
@@ -444,7 +428,7 @@ class PdfSplitterController extends GetxController {
             outputFileName = '${fileNames[i]}.pdf';
           }
 
-          final filePath = path.join(newDirPath, outputFileName);
+          var filePath = path.join(newDirPath, outputFileName);
 
           if (splitIntoSubdir.value) {
             String subdirName = fileNames[i];
@@ -458,6 +442,7 @@ class PdfSplitterController extends GetxController {
             final file = File(filePath);
             await file.writeAsBytes(await outPdf.save());
             await file.rename(newFilePath);
+            filePath = newFilePath; // Aggiorna filePath dopo il rename
             await appInfo('File salvato in subdirectory: $newFilePath');
           } else {
             final file = File(filePath);
@@ -466,17 +451,22 @@ class PdfSplitterController extends GetxController {
           }
           outPdf.dispose();
 
-          if (sendEmailAfterSplit.value) {
-            message = 'Attesa 10s prima di invio';
-            await appInfo('Attesa 10s prima di invio');
+          if (sendEmailAfterSplit.value &&
+              emailFrom.value.isNotEmpty &&
+              fields[i].length >= 6 &&
+              fields[i][5] != null &&
+              fields[i][5].toString().trim().isNotEmpty) {
+            String toEmail = fields[i][5].toString().trim();
+            message = 'Attesa 10s prima di invio a $toEmail';
+            await appInfo('Attesa 10s prima di invio a $toEmail');
             await Future.delayed(Duration(seconds: 10));
-            message = 'Invio email a ${fields[i][5]}';
+            message = 'Invio email a $toEmail';
             await appInfo(
-                'Invio email a ${fields[i][5]} con Oggetto ${fields[i][2]} e con file $filePath');
+                'Invio email a $toEmail con Oggetto ${emailSubject.value}');
             await sendEmail(
-                fields[i][5].toString(),
-                fields[i][2].toString(),
-                'Gentile ${fields[i][1]}, si trasmette in allegato quanto in oggetto.',
+                toEmail,
+                emailSubject.value,
+                emailBody.value,
                 filePath);
             message = 'Attesa 10s post invio';
             await appInfo('Attesa 10s post invio');
@@ -541,39 +531,31 @@ class PdfSplitterController extends GetxController {
 
     Directory tempDir = await getTemporaryDirectory();
     String tempDirPath = tempDir.path;
-    // Scrivi lo script VBS in un file temporaneo
-    //File tempVbsFile = File('C:\\send_email.vbs');
-    String command;
+    var result;
     if (Platform.isWindows) {
       File tempVbsFile = File(path.join(tempDirPath, 'send_email.vbs'));
       await tempVbsFile.writeAsString(vbsScript);
-      // Comando per eseguire lo script VBS
-      command =
-          'cscript ${tempVbsFile.path} -from "$fromAddress" -to "$email" -subject "$subject" -body "$body" -attach "$filePath"';
+      appDebug('Invio email con cscript');
+      result = await Process.run('cscript', [
+        tempVbsFile.path,
+        '-from', emailFrom.value,
+        '-to', email,
+        '-subject', subject,
+        '-body', body,
+        '-attach', filePath,
+      ]);
     } else {
       File tempShFile = File(path.join(tempDirPath, 'send_email.sh'));
       await tempShFile.writeAsString(mailScript);
-      command =
-          '${tempShFile.path} -from "$fromAddress" -to "$email" -subject "$subject" -body "$body" -attach "$filePath"';
-    }
-    // Comando per eseguire lo script VBS
-    appDebug('Comando: $command');
-
-    //String regCommand = command.replaceAll(r'\', '');
-
-    //appDebug('regComando: $regCommand');
-    // Esegui il comando
-    var result;
-    if (Platform.isWindows) {
-      result = await Process.run('cmd.exe', ['/c', command]);
-      //result = await Process.run('cmd.exe', ['/c', regCommand]);
-      //result = await Process.run('cmd.exe', ['/c', 'echo $command']);
-    } else if (Platform.isLinux) {
-      //result = await Process.run('bash', ['-c', command]);
-      result = await Process.run('bash', ['-c', 'echo $command']);
-    } else if (Platform.isMacOS) {
-      //result = await Process.run('bash', ['-c', command]);
-      result = await Process.run('bash', ['-c', 'echo $command']);
+      appDebug('Invio email con script shell');
+      result = await Process.run('bash', [
+        tempShFile.path,
+        '-from', emailFrom.value,
+        '-to', email,
+        '-subject', subject,
+        '-body', body,
+        '-attach', filePath,
+      ]);
     }
 
     if (result.exitCode == 0) {
@@ -947,19 +929,10 @@ class PdfSplitter extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 6),
-            // Due switch per riga
             Obx(() => Wrap(
                   spacing: 8,
                   runSpacing: 4,
                   children: [
-                    _buildSwitchCompact(
-                      title: 'Email',
-                      value: controller.sendEmailAfterSplit.value,
-                      enabled: controller.canEnableSwitchEmail.value,
-                      onChanged: (value) =>
-                          controller.sendEmailAfterSplit.value = value,
-                      icon: Icons.email,
-                    ),
                     _buildSwitchCompact(
                       title: 'Description',
                       value: controller.useDescription.value,
@@ -984,6 +957,97 @@ class PdfSplitter extends StatelessWidget {
                           controller.splitIntoSubdir.value = value,
                       icon: Icons.create_new_folder,
                     ),
+                  ],
+                )),
+            const SizedBox(height: 8),
+            // Sezione Email con interruttore e campi espandibili
+            Obx(() => Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        SizedBox(
+                          height: 20,
+                          child: Switch(
+                            value: controller.sendEmailAfterSplit.value &&
+                                controller.canEnableSwitchEmail.value,
+                            onChanged: controller.canEnableSwitchEmail.value
+                                ? (value) {
+                                    controller.sendEmailAfterSplit.value = value;
+                                  }
+                                : null,
+                            activeThumbColor: Colors.deepPurpleAccent,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Icon(Icons.email,
+                            size: 16,
+                            color: controller.canEnableSwitchEmail.value
+                                ? Colors.deepPurpleAccent
+                                : Colors.grey),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Invia Email',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                            color: controller.canEnableSwitchEmail.value
+                                ? Colors.black87
+                                : Colors.grey,
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (controller.sendEmailAfterSplit.value &&
+                        controller.canEnableSwitchEmail.value) ...[
+                      const SizedBox(height: 8),
+                      TextField(
+                        decoration: InputDecoration(
+                          labelText: 'Da (From)',
+                          hintText: 'mittente@email.com',
+                          labelStyle: TextStyle(fontSize: 13),
+                          contentPadding: EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 8),
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(6)),
+                          isDense: true,
+                        ),
+                        style: TextStyle(fontSize: 13),
+                        onChanged: (value) =>
+                            controller.emailFrom.value = value,
+                      ),
+                      const SizedBox(height: 6),
+                      TextField(
+                        decoration: InputDecoration(
+                          labelText: 'Oggetto (Subject)',
+                          labelStyle: TextStyle(fontSize: 13),
+                          contentPadding: EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 8),
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(6)),
+                          isDense: true,
+                        ),
+                        style: TextStyle(fontSize: 13),
+                        onChanged: (value) =>
+                            controller.emailSubject.value = value,
+                      ),
+                      const SizedBox(height: 6),
+                      TextField(
+                        maxLines: 3,
+                        decoration: InputDecoration(
+                          labelText: 'Corpo (Body)',
+                          labelStyle: TextStyle(fontSize: 13),
+                          contentPadding: EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 8),
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(6)),
+                          isDense: true,
+                        ),
+                        style: TextStyle(fontSize: 13),
+                        onChanged: (value) =>
+                            controller.emailBody.value = value,
+                      ),
+                    ],
                   ],
                 )),
           ],
